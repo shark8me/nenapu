@@ -1,0 +1,157 @@
+;; gorilla-repl.fileformat = 1
+
+;; **
+;;; # Gorilla REPL
+;;; 
+;;; Welcome to gorilla :-)
+;;; 
+;;; Shift + enter evaluates code. Hit alt+g twice in quick succession or click the menu icon (upper-right corner) for more commands ...
+;;; 
+;;; It's a good habit to run each worksheet in its own namespace: feel free to use the declaration we've provided below if you'd like.
+;; **
+
+;; @@
+(ns energized-mist
+  (:require [gorilla-plot.core :as plot]
+            [incanter.core :as inc]
+            [incanter.io :as incio]
+            [incanter.datasets :as incds]
+            [clj-ml.data :as cd]
+            [clj-ml.classifiers :as cls]
+            [clj-ml.utils :as ut]))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}
+;; <=
+
+;; @@
+(def ds (cd/make-dataset "my-name" [:length :width {:style nil} {:kind [:good :bad]}]
+            	                [[12 24 "longish" :good]
+                	             [8 5 "shortish" :bad]]))
+ds
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-unkown'>(#&lt;DenseInstance 12,24,longish,good&gt; #&lt;DenseInstance 8,5,shortish,bad&gt;)</span>","value":"(#<DenseInstance 12,24,longish,good> #<DenseInstance 8,5,shortish,bad>)"}
+;; <=
+
+;; @@
+(cd/dataset-seq ds)
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-unkown'>(#&lt;DenseInstance 12,24,longish,good&gt; #&lt;DenseInstance 8,5,shortish,bad&gt;)</span>","value":"(#<DenseInstance 12,24,longish,good> #<DenseInstance 8,5,shortish,bad>)"}
+;; <=
+
+;; @@
+(def dset (incio/read-dataset "../train_100.csv" :header true))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist/dset</span>","value":"#'energized-mist/dset"}
+;; <=
+
+;; @@
+(def irisdata (incds/get-dataset :iris))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist/irisdata</span>","value":"#'energized-mist/irisdata"}
+;; <=
+
+;; @@
+(:column-names irisdata )
+;; @@
+;; =>
+;;; {"type":"list-like","open":"<span class='clj-vector'>[</span>","close":"<span class='clj-vector'>]</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:Sepal.Length</span>","value":":Sepal.Length"},{"type":"html","content":"<span class='clj-keyword'>:Sepal.Width</span>","value":":Sepal.Width"},{"type":"html","content":"<span class='clj-keyword'>:Petal.Length</span>","value":":Petal.Length"},{"type":"html","content":"<span class='clj-keyword'>:Petal.Width</span>","value":":Petal.Width"},{"type":"html","content":"<span class='clj-keyword'>:Species</span>","value":":Species"}],"value":"[:Sepal.Length :Sepal.Width :Petal.Length :Petal.Width :Species]"}
+;; <=
+
+;; @@
+(->> irisdata
+    :rows
+    ;(take 2)
+     (map :Species)
+     set)
+	
+;; @@
+;; =>
+;;; {"type":"list-like","open":"<span class='clj-set'>#{</span>","close":"<span class='clj-set'>}</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-string'>&quot;versicolor&quot;</span>","value":"\"versicolor\""},{"type":"html","content":"<span class='clj-string'>&quot;setosa&quot;</span>","value":"\"setosa\""},{"type":"html","content":"<span class='clj-string'>&quot;virginica&quot;</span>","value":"\"virginica\""}],"value":"#{\"versicolor\" \"setosa\" \"virginica\"}"}
+;; <=
+
+;; @@
+(->> (:rows irisdata )
+    (take 2)
+     (map (fn[m] (map #(% m) [:Sepal.Length :Sepal.Width :Petal.Length :Petal.Width :Species])))
+    ;(map vals)
+     )
+;; @@
+;; =>
+;;; {"type":"list-like","open":"<span class='clj-lazy-seq'>(</span>","close":"<span class='clj-lazy-seq'>)</span>","separator":" ","items":[{"type":"list-like","open":"<span class='clj-lazy-seq'>(</span>","close":"<span class='clj-lazy-seq'>)</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-double'>5.1</span>","value":"5.1"},{"type":"html","content":"<span class='clj-double'>3.5</span>","value":"3.5"},{"type":"html","content":"<span class='clj-double'>1.4</span>","value":"1.4"},{"type":"html","content":"<span class='clj-double'>0.2</span>","value":"0.2"},{"type":"html","content":"<span class='clj-string'>&quot;setosa&quot;</span>","value":"\"setosa\""}],"value":"(5.1 3.5 1.4 0.2 \"setosa\")"},{"type":"list-like","open":"<span class='clj-lazy-seq'>(</span>","close":"<span class='clj-lazy-seq'>)</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-double'>4.9</span>","value":"4.9"},{"type":"html","content":"<span class='clj-double'>3.0</span>","value":"3.0"},{"type":"html","content":"<span class='clj-double'>1.4</span>","value":"1.4"},{"type":"html","content":"<span class='clj-double'>0.2</span>","value":"0.2"},{"type":"html","content":"<span class='clj-string'>&quot;setosa&quot;</span>","value":"\"setosa\""}],"value":"(4.9 3.0 1.4 0.2 \"setosa\")"}],"value":"((5.1 3.5 1.4 0.2 \"setosa\") (4.9 3.0 1.4 0.2 \"setosa\"))"}
+;; <=
+
+;; @@
+(def ds 
+  (cd/dataset-set-class 
+  (cd/make-dataset "i2" [:Sepal.Length :Sepal.Width :Petal.Length :Petal.Width {:kind ["versicolor" "setosa" "virginica"]}]
+                         (->> (:rows irisdata )
+    ;(take 2)
+	(map (fn[m] (map #(% m) [:Sepal.Length :Sepal.Width :Petal.Length :Petal.Width :Species]))))) 4
+    ))
+;ds
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist/ds</span>","value":"#'energized-mist/ds"}
+;; <=
+
+;; @@
+(def classifier (-> (cls/make-classifier :decision-tree :c45)
+                          (cls/classifier-train ds)))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist/classifier</span>","value":"#'energized-mist/classifier"}
+;; <=
+
+;; @@
+(def instance (-> (first (cd/dataset-seq ds))
+                        (cd/instance-set-class-missing)))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist/instance</span>","value":"#'energized-mist/instance"}
+;; <=
+
+;; @@
+(cls/classifier-classify classifier instance)
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-keyword'>:setosa</span>","value":":setosa"}
+;; <=
+
+;; @@
+(def evaluation (cls/classifier-evaluate classifier :cross-validation ds 10))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist/evaluation</span>","value":"#'energized-mist/evaluation"}
+;; <=
+
+;; @@
+(println (:summary evaluation))
+;; @@
+;; ->
+;;; 
+;;; Correctly Classified Instances         141               94.6309 %
+;;; Incorrectly Classified Instances         8                5.3691 %
+;;; Kappa statistic                          0.9195
+;;; Mean absolute error                      0.0442
+;;; Root mean squared error                  0.1813
+;;; Relative absolute error                  9.9341 %
+;;; Root relative squared error             38.46   %
+;;; Coverage of cases (0.95 level)          96.6443 %
+;;; Mean rel. region size (0.95 level)      35.3468 %
+;;; Total Number of Instances              149     
+;;; Ignored Class Unknown Instances                  1     
+;;; 
+;;; 
+;; <-
+;; =>
+;;; {"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}
+;; <=
+
+;; @@
+
+;; @@

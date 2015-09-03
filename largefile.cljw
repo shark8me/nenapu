@@ -1,0 +1,282 @@
+;; gorilla-repl.fileformat = 1
+
+;; **
+;;; # Gorilla REPL
+;;; 
+;;; Welcome to gorilla :-)
+;;; 
+;;; Shift + enter evaluates code. Hit alt+g twice in quick succession or click the menu icon (upper-right corner) for more commands ...
+;;; 
+;;; It's a good habit to run each worksheet in its own namespace: feel free to use the declaration we've provided below if you'd like.
+;; **
+
+;; @@
+(ns energized-mist
+  (:require [gorilla-plot.core :as plot]
+            [incanter.core :as inc]
+            [incanter.io :as incio]
+            [incanter.datasets :as incds]
+            [clj-ml.data :as cd]
+            [clj-ml.classifiers :as cls]
+            [clj-ml.utils :as ut]
+            [clojure.core.reducers :as r]
+            [iota :as iota]))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}
+;; <=
+
+;; @@
+(def fpath "/media/kiran/5A76869F76867B8F/datasets/springleaf/iris0.csv")
+;(try
+(def ids 
+  (-> 
+  	(cd/make-dataset "i2" 
+                   [:Sepal.Length :Sepal.Width :Petal.Length :Petal.Width  
+                    ;{:kind [:Iris-setosa :Iris-virginica :Iris-versicolor]}
+                    {:kind [:0 :1 :2]}
+                    ] 0)
+    (cd/dataset-set-class 4)
+    ))
+  ;(catch Exception e
+  ;  (println (.getMessage e))))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist/ids</span>","value":"#'energized-mist/ids"}
+;; <=
+
+;; @@
+(cd/dataset-class-name ids)
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-keyword'>:kind</span>","value":":kind"}
+;; <=
+
+;; **
+;;; Lets load the iris data and create an Instance object for each line. We need to previously create the dataset, with 0 instances.
+;; **
+
+;; @@
+(defn add-inst [ds instlist]
+  (reduce #(cd/dataset-add %1 %2) ds instlist)) 
+
+
+(def g 
+  (->> (iota/seq fpath)
+     (map #(clojure.string/split % #","))
+     (map (fn[lst] (let [x (subvec lst 0 4)]
+            (into (mapv #(Float/parseFloat %) x) 
+                  [(last lst)]))))
+     ;(take 4)
+     (map #(cd/make-instance ids %))
+     ;(map #(cd/instance-set-class % :kind))  
+     )
+        )
+
+;(def ds1 (add-inst ids g))
+;(take 2 ds1)
+(take 2 g)
+;; @@
+;; =>
+;;; {"type":"list-like","open":"<span class='clj-lazy-seq'>(</span>","close":"<span class='clj-lazy-seq'>)</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-unkown'>#&lt;Instance 5.1,3.5,1.4,0.2,0&gt;</span>","value":"#<Instance 5.1,3.5,1.4,0.2,0>"},{"type":"html","content":"<span class='clj-unkown'>#&lt;Instance 4.9,3,1.4,0.2,0&gt;</span>","value":"#<Instance 4.9,3,1.4,0.2,0>"}],"value":"(#<Instance 5.1,3.5,1.4,0.2,0> #<Instance 4.9,3,1.4,0.2,0>)"}
+;; <=
+
+;; @@
+(cd/instance-to-map (first g))
+;; @@
+;; =>
+;;; {"type":"list-like","open":"<span class='clj-map'>{</span>","close":"<span class='clj-map'>}</span>","separator":", ","items":[{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:kind</span>","value":":kind"},{"type":"html","content":"<span class='clj-string'>&quot;0&quot;</span>","value":"\"0\""}],"value":"[:kind \"0\"]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:Petal.Width</span>","value":":Petal.Width"},{"type":"html","content":"<span class='clj-double'>0.20000000298023224</span>","value":"0.20000000298023224"}],"value":"[:Petal.Width 0.20000000298023224]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:Petal.Length</span>","value":":Petal.Length"},{"type":"html","content":"<span class='clj-double'>1.399999976158142</span>","value":"1.399999976158142"}],"value":"[:Petal.Length 1.399999976158142]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:Sepal.Width</span>","value":":Sepal.Width"},{"type":"html","content":"<span class='clj-double'>3.5</span>","value":"3.5"}],"value":"[:Sepal.Width 3.5]"},{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:Sepal.Length</span>","value":":Sepal.Length"},{"type":"html","content":"<span class='clj-double'>5.099999904632568</span>","value":"5.099999904632568"}],"value":"[:Sepal.Length 5.099999904632568]"}],"value":"{:kind \"0\", :Petal.Width 0.20000000298023224, :Petal.Length 1.399999976158142, :Sepal.Width 3.5, :Sepal.Length 5.099999904632568}"}
+;; <=
+
+;; @@
+(defn make-rand-instances 
+  [num]
+  (->> (range num)
+	(mapv 
+  		(fn [_] (into (vec 
+                        (for [x (range 4)]
+  			(rand-int 4))) [(str (rand-int 2))]))) 
+  (map #(cd/make-instance ids %))
+  ;(map #(cd/instance-set-class % 4))
+     ))
+
+
+(def f (make-rand-instances 3000))
+(def ds1 (add-inst ids f))
+(take 2 (cd/dataset-seq ds1))
+;(take 2 f)
+;; @@
+;; =>
+;;; {"type":"list-like","open":"<span class='clj-lazy-seq'>(</span>","close":"<span class='clj-lazy-seq'>)</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-unkown'>#&lt;Instance 0,0,3,1,0&gt;</span>","value":"#<Instance 0,0,3,1,0>"},{"type":"html","content":"<span class='clj-unkown'>#&lt;Instance 1,3,2,1,0&gt;</span>","value":"#<Instance 1,3,2,1,0>"}],"value":"(#<Instance 0,0,3,1,0> #<Instance 1,3,2,1,0>)"}
+;; <=
+
+;; @@
+(def classifier (cls/make-classifier :decision-tree :raced-incremental-logit-boost {:size-of-validation-set 20 } ))
+
+(.getValidationChunkSize classifier)
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-unkown'>20</span>","value":"20"}
+;; <=
+
+;; @@
+ (cls/classifier-train classifier ds1)
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-unkown'>#&lt;RacedIncrementalLogitBoost RacedIncrementalLogitBoost: Best committee on validation data\nBase classifiers: \n\nModel 1\n\tClass 1 (kind=0)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 1.5 : 0.7697176241480089\nPetal.Length &gt; 1.5 : 0.9465570400822221\nPetal.Length is missing : 0.8557499999999838\n\n\n\tClass 2 (kind=1)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 1.5 : 0.7302823758520038\nPetal.Length &gt; 1.5 : 0.5534429599177867\nPetal.Length is missing : 0.6442499999999655\n\n\n\tClass 3 (kind=2)\n\nDecision Stump\n\nClassifications\n\nSepal.Width &lt;= 1.5 : -1.5000000000000129\nSepal.Width &gt; 1.5 : -1.5000000000000142\nSepal.Width is missing : -1.4999999999999494\n\n\nModel 2\n\tClass 1 (kind=0)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 2.5 : 0.13597893509185183\nPetal.Length &gt; 2.5 : -0.2780884383042732\nPetal.Length is missing : 0.04515005874065856\n\n\n\tClass 2 (kind=1)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 2.5 : 0.27171973696600105\nPetal.Length &gt; 2.5 : 0.7097864033004686\nPetal.Length is missing : 0.3656720203424759\n\n\n\tClass 3 (kind=2)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 1.5 : -1.1115554419245206\nPetal.Length &gt; 1.5 : -1.1106140454722457\nPetal.Length is missing : -1.1111046939703042\n\n\nModel 3\n\tClass 1 (kind=0)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 2.5 : 0.08940543128525535\nPetal.Length &gt; 2.5 : 0.574434941057272\nPetal.Length is missing : 0.20189044624282002\n\n\n\tClass 2 (kind=1)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 2.5 : 0.0886528637456372\nPetal.Length &gt; 2.5 : -0.37885198143665205\nPetal.Length is missing : -0.022688500060315392\n\n\n\tClass 3 (kind=2)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 2.5 : -1.0463547679264138\nPetal.Length &gt; 2.5 : -1.0451854247772743\nPetal.Length is missing : -1.0460779123917983\n\nNumber of models: 3\nChunk size per model: 2000\n&gt;</span>","value":"#<RacedIncrementalLogitBoost RacedIncrementalLogitBoost: Best committee on validation data\nBase classifiers: \n\nModel 1\n\tClass 1 (kind=0)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 1.5 : 0.7697176241480089\nPetal.Length > 1.5 : 0.9465570400822221\nPetal.Length is missing : 0.8557499999999838\n\n\n\tClass 2 (kind=1)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 1.5 : 0.7302823758520038\nPetal.Length > 1.5 : 0.5534429599177867\nPetal.Length is missing : 0.6442499999999655\n\n\n\tClass 3 (kind=2)\n\nDecision Stump\n\nClassifications\n\nSepal.Width <= 1.5 : -1.5000000000000129\nSepal.Width > 1.5 : -1.5000000000000142\nSepal.Width is missing : -1.4999999999999494\n\n\nModel 2\n\tClass 1 (kind=0)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 2.5 : 0.13597893509185183\nPetal.Length > 2.5 : -0.2780884383042732\nPetal.Length is missing : 0.04515005874065856\n\n\n\tClass 2 (kind=1)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 2.5 : 0.27171973696600105\nPetal.Length > 2.5 : 0.7097864033004686\nPetal.Length is missing : 0.3656720203424759\n\n\n\tClass 3 (kind=2)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 1.5 : -1.1115554419245206\nPetal.Length > 1.5 : -1.1106140454722457\nPetal.Length is missing : -1.1111046939703042\n\n\nModel 3\n\tClass 1 (kind=0)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 2.5 : 0.08940543128525535\nPetal.Length > 2.5 : 0.574434941057272\nPetal.Length is missing : 0.20189044624282002\n\n\n\tClass 2 (kind=1)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 2.5 : 0.0886528637456372\nPetal.Length > 2.5 : -0.37885198143665205\nPetal.Length is missing : -0.022688500060315392\n\n\n\tClass 3 (kind=2)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 2.5 : -1.0463547679264138\nPetal.Length > 2.5 : -1.0451854247772743\nPetal.Length is missing : -1.0460779123917983\n\nNumber of models: 3\nChunk size per model: 2000\n>"}
+;; <=
+
+;; @@
+
+(def ds2 (add-inst ids (make-rand-instances 4000)))
+(cls/classifier-update classifier ds2)
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-unkown'>#&lt;RacedIncrementalLogitBoost RacedIncrementalLogitBoost: Best committee on validation data\nBase classifiers: \n\nModel 1\n\tClass 1 (kind=0)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 2.5 : 0.7559210526315954\nPetal.Length &gt; 2.5 : 1.1249999999999947\nPetal.Length is missing : 0.8445000000000008\n\n\n\tClass 2 (kind=1)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 2.5 : 0.7440789473684383\nPetal.Length &gt; 2.5 : 0.37499999999999317\nPetal.Length is missing : 0.6555000000000109\n\n\n\tClass 3 (kind=2)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 2.5 : -1.5000000000000338\nPetal.Length &gt; 2.5 : -1.500000000000007\nPetal.Length is missing : -1.5000000000000135\n\n\nModel 2\n\tClass 1 (kind=0)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 2.5 : 0.2923509269893545\nPetal.Length &gt; 2.5 : -0.11759290655465747\nPetal.Length is missing : 0.19890216566145086\n\n\n\tClass 2 (kind=1)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 2.5 : 0.11307792829856948\nPetal.Length &gt; 2.5 : 0.5634386848746277\nPetal.Length is missing : 0.20876167315174754\n\n\n\tClass 3 (kind=2)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 2.5 : -1.1115642108920964\nPetal.Length &gt; 2.5 : -1.1081672126204574\nPetal.Length is missing : -1.1108010728724815\n\n\nModel 3\n\tClass 1 (kind=0)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 2.5 : -0.025297165363860608\nPetal.Length &gt; 2.5 : -0.2549055297005691\nPetal.Length is missing : -0.07603235795247457\n\n\n\tClass 2 (kind=1)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 2.5 : 0.20476906613550147\nPetal.Length &gt; 2.5 : 0.43228332693802585\nPetal.Length is missing : 0.2553149391377671\n\n\n\tClass 3 (kind=2)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 2.5 : -1.0463580309577507\nPetal.Length &gt; 2.5 : -1.0459222827694734\nPetal.Length is missing : -1.0462623750374238\n\n\nModel 4\n\tClass 1 (kind=0)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 1.5 : 0.02916515131539655\nPetal.Length &gt; 1.5 : 0.28041678422186367\nPetal.Length is missing : 0.14994451397245315\n\n\n\tClass 2 (kind=1)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 1.5 : 0.056131560785031266\nPetal.Length &gt; 1.5 : -0.19283746226983667\nPetal.Length is missing : -0.06398425879772356\n\n\n\tClass 3 (kind=2)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 2.5 : -1.0217789099022823\nPetal.Length &gt; 2.5 : -1.0211094900489028\nPetal.Length is missing : -1.021637676917948\n\n\nModel 5\n\tClass 1 (kind=0)\n\nDecision Stump\n\nClassifications\n\nSepal.Width &lt;= 1.5 : 0.13668624266051566\nSepal.Width &gt; 1.5 : -0.1263969859379347\nSepal.Width is missing : 0.002021988080600574\n\n\n\tClass 2 (kind=1)\n\nDecision Stump\n\nClassifications\n\nSepal.Width &lt;= 1.5 : -0.09434341071757779\nSepal.Width &gt; 1.5 : 0.16893766548841302\nSepal.Width is missing : 0.04040432073338012\n\n\n\tClass 3 (kind=2)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 1.5 : -1.0107098812679607\nPetal.Length &gt; 1.5 : -1.0105906015250004\nPetal.Length is missing : -1.0106493754422703\n\n\nModel 6\n\tClass 1 (kind=0)\n\nDecision Stump\n\nClassifications\n\nSepal.Width &lt;= 0.5 : -0.4227235887738444\nSepal.Width &gt; 0.5 : 0.07069118957441302\nSepal.Width is missing : -0.06265609948218372\n\n\n\tClass 2 (kind=1)\n\nDecision Stump\n\nClassifications\n\nSepal.Width &lt;= 0.5 : 0.44504263119149684\nSepal.Width &gt; 0.5 : -0.0491454415264188\nSepal.Width is missing : 0.08416570609184104\n\n\n\tClass 3 (kind=2)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 1.5 : -1.005360194293257\nPetal.Length &gt; 1.5 : -1.005306181000689\nPetal.Length is missing : -1.0053331079085523\n\n\nModel 7\n\tClass 1 (kind=0)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 2.5 : -0.05571085821352767\nPetal.Length &gt; 2.5 : 0.22264655244042095\nPetal.Length is missing : 0.006698960134920226\n\n\n\tClass 2 (kind=1)\n\nDecision Stump\n\nClassifications\n\nPetal.Length &lt;= 2.5 : 0.06671976668305381\nPetal.Length &gt; 2.5 : -0.21148459577773532\nPetal.Length is missing : 0.004295214540966617\n\n\n\tClass 3 (kind=2)\n\nDecision Stump\n\nClassifications\n\nSepal.Width &lt;= 0.5 : -1.0026661204651077\nSepal.Width &gt; 0.5 : -1.002709713029528\nSepal.Width is missing : -1.0026996820494178\n\n\nModel 8\n\tClass 1 (kind=0)\n\nDecision Stump\n\nClassifications\n\nSepal.Width &lt;= 0.5 : 0.291058799240809\nSepal.Width &gt; 0.5 : 0.011705863217486897\nSepal.Width is missing : 0.076221454861798\n\n\n\tClass 2 (kind=1)\n\nDecision Stump\n\nClassifications\n\nSepal.Width &lt;= 0.5 : -0.2850360624002332\nSepal.Width &gt; 0.5 : -0.0061054502617021444\nSepal.Width is missing : -0.07058535932566079\n\n\n\tClass 3 (kind=2)\n\nDecision Stump\n\nClassifications\n\nSepal.Width &lt;= 0.5 : -1.0013600065848889\nSepal.Width &gt; 0.5 : -1.0013826286381087\nSepal.Width is missing : -1.0013773345224195\n\nNumber of models: 8\nChunk size per model: 1000\n&gt;</span>","value":"#<RacedIncrementalLogitBoost RacedIncrementalLogitBoost: Best committee on validation data\nBase classifiers: \n\nModel 1\n\tClass 1 (kind=0)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 2.5 : 0.7559210526315954\nPetal.Length > 2.5 : 1.1249999999999947\nPetal.Length is missing : 0.8445000000000008\n\n\n\tClass 2 (kind=1)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 2.5 : 0.7440789473684383\nPetal.Length > 2.5 : 0.37499999999999317\nPetal.Length is missing : 0.6555000000000109\n\n\n\tClass 3 (kind=2)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 2.5 : -1.5000000000000338\nPetal.Length > 2.5 : -1.500000000000007\nPetal.Length is missing : -1.5000000000000135\n\n\nModel 2\n\tClass 1 (kind=0)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 2.5 : 0.2923509269893545\nPetal.Length > 2.5 : -0.11759290655465747\nPetal.Length is missing : 0.19890216566145086\n\n\n\tClass 2 (kind=1)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 2.5 : 0.11307792829856948\nPetal.Length > 2.5 : 0.5634386848746277\nPetal.Length is missing : 0.20876167315174754\n\n\n\tClass 3 (kind=2)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 2.5 : -1.1115642108920964\nPetal.Length > 2.5 : -1.1081672126204574\nPetal.Length is missing : -1.1108010728724815\n\n\nModel 3\n\tClass 1 (kind=0)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 2.5 : -0.025297165363860608\nPetal.Length > 2.5 : -0.2549055297005691\nPetal.Length is missing : -0.07603235795247457\n\n\n\tClass 2 (kind=1)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 2.5 : 0.20476906613550147\nPetal.Length > 2.5 : 0.43228332693802585\nPetal.Length is missing : 0.2553149391377671\n\n\n\tClass 3 (kind=2)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 2.5 : -1.0463580309577507\nPetal.Length > 2.5 : -1.0459222827694734\nPetal.Length is missing : -1.0462623750374238\n\n\nModel 4\n\tClass 1 (kind=0)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 1.5 : 0.02916515131539655\nPetal.Length > 1.5 : 0.28041678422186367\nPetal.Length is missing : 0.14994451397245315\n\n\n\tClass 2 (kind=1)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 1.5 : 0.056131560785031266\nPetal.Length > 1.5 : -0.19283746226983667\nPetal.Length is missing : -0.06398425879772356\n\n\n\tClass 3 (kind=2)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 2.5 : -1.0217789099022823\nPetal.Length > 2.5 : -1.0211094900489028\nPetal.Length is missing : -1.021637676917948\n\n\nModel 5\n\tClass 1 (kind=0)\n\nDecision Stump\n\nClassifications\n\nSepal.Width <= 1.5 : 0.13668624266051566\nSepal.Width > 1.5 : -0.1263969859379347\nSepal.Width is missing : 0.002021988080600574\n\n\n\tClass 2 (kind=1)\n\nDecision Stump\n\nClassifications\n\nSepal.Width <= 1.5 : -0.09434341071757779\nSepal.Width > 1.5 : 0.16893766548841302\nSepal.Width is missing : 0.04040432073338012\n\n\n\tClass 3 (kind=2)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 1.5 : -1.0107098812679607\nPetal.Length > 1.5 : -1.0105906015250004\nPetal.Length is missing : -1.0106493754422703\n\n\nModel 6\n\tClass 1 (kind=0)\n\nDecision Stump\n\nClassifications\n\nSepal.Width <= 0.5 : -0.4227235887738444\nSepal.Width > 0.5 : 0.07069118957441302\nSepal.Width is missing : -0.06265609948218372\n\n\n\tClass 2 (kind=1)\n\nDecision Stump\n\nClassifications\n\nSepal.Width <= 0.5 : 0.44504263119149684\nSepal.Width > 0.5 : -0.0491454415264188\nSepal.Width is missing : 0.08416570609184104\n\n\n\tClass 3 (kind=2)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 1.5 : -1.005360194293257\nPetal.Length > 1.5 : -1.005306181000689\nPetal.Length is missing : -1.0053331079085523\n\n\nModel 7\n\tClass 1 (kind=0)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 2.5 : -0.05571085821352767\nPetal.Length > 2.5 : 0.22264655244042095\nPetal.Length is missing : 0.006698960134920226\n\n\n\tClass 2 (kind=1)\n\nDecision Stump\n\nClassifications\n\nPetal.Length <= 2.5 : 0.06671976668305381\nPetal.Length > 2.5 : -0.21148459577773532\nPetal.Length is missing : 0.004295214540966617\n\n\n\tClass 3 (kind=2)\n\nDecision Stump\n\nClassifications\n\nSepal.Width <= 0.5 : -1.0026661204651077\nSepal.Width > 0.5 : -1.002709713029528\nSepal.Width is missing : -1.0026996820494178\n\n\nModel 8\n\tClass 1 (kind=0)\n\nDecision Stump\n\nClassifications\n\nSepal.Width <= 0.5 : 0.291058799240809\nSepal.Width > 0.5 : 0.011705863217486897\nSepal.Width is missing : 0.076221454861798\n\n\n\tClass 2 (kind=1)\n\nDecision Stump\n\nClassifications\n\nSepal.Width <= 0.5 : -0.2850360624002332\nSepal.Width > 0.5 : -0.0061054502617021444\nSepal.Width is missing : -0.07058535932566079\n\n\n\tClass 3 (kind=2)\n\nDecision Stump\n\nClassifications\n\nSepal.Width <= 0.5 : -1.0013600065848889\nSepal.Width > 0.5 : -1.0013826286381087\nSepal.Width is missing : -1.0013773345224195\n\nNumber of models: 8\nChunk size per model: 1000\n>"}
+;; <=
+
+;; @@
+(-> (cd/dataset-seq ids)
+    second
+    ;(cd/instance-get-class)
+    )
+                        
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-unkown'>#&lt;Instance 4.9,3,1.4,0.2,0&gt;</span>","value":"#<Instance 4.9,3,1.4,0.2,0>"}
+;; <=
+
+;; @@
+(def k (-> (cd/dataset-seq ids)
+           second
+           ;(cd/instance-set-class :kind)
+           ))
+k
+;(cd/instance-get-class k)
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-unkown'>#&lt;Instance 4.9,3,1.4,0.2,0&gt;</span>","value":"#<Instance 4.9,3,1.4,0.2,0>"}
+;; <=
+
+;; @@
+(cls/classifier-classify classifier k)
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-double'>0.0</span>","value":"0.0"}
+;; <=
+
+;; @@
+(def evaluation (cls/classifier-evaluate classifier :cross-validation ids 10))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist/evaluation</span>","value":"#'energized-mist/evaluation"}
+;; <=
+
+;; @@
+(println (:summary evaluation))
+;; @@
+;; ->
+;;; 
+;;; Correctly Classified Instances          50               33.3333 %
+;;; Incorrectly Classified Instances       100               66.6667 %
+;;; Kappa statistic                          0     
+;;; Mean absolute error                      0.4444
+;;; Root mean squared error                  0.4714
+;;; Relative absolute error                100      %
+;;; Root relative squared error            100      %
+;;; Total Number of Instances              150     
+;;; 
+;;; 
+;; <-
+;; =>
+;;; {"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}
+;; <=
+
+;; @@
+(defn compare-class [cls ]
+(let [ evaluation (cls/classifier-evaluate 
+                  cls :cross-validation ids 10) ]  
+ (println (:summary evaluation))))
+
+(compare-class (cls/make-classifier :decision-tree :random-forest))
+;; @@
+;; ->
+;;; 
+;;; Correctly Classified Instances         142               94.6667 %
+;;; Incorrectly Classified Instances         8                5.3333 %
+;;; Kappa statistic                          0.92  
+;;; Mean absolute error                      0.0396
+;;; Root mean squared error                  0.1582
+;;; Relative absolute error                  8.9    %
+;;; Root relative squared error             33.5559 %
+;;; Total Number of Instances              150     
+;;; 
+;;; 
+;; <-
+;; =>
+;;; {"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}
+;; <=
+
+;; @@
+(compare-class (cls/make-classifier :decision-tree :boosted-stump) )
+;; @@
+;; ->
+;;; 
+;;; Correctly Classified Instances         142               94.6667 %
+;;; Incorrectly Classified Instances         8                5.3333 %
+;;; Kappa statistic                          0.92  
+;;; Mean absolute error                      0.0435
+;;; Root mean squared error                  0.1832
+;;; Relative absolute error                  9.7956 %
+;;; Root relative squared error             38.8689 %
+;;; Total Number of Instances              150     
+;;; 
+;;; 
+;; <-
+;; =>
+;;; {"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}
+;; <=
+
+;; @@
+(compare-class (cls/make-classifier :support-vector-machine :smo))
+;; @@
+;; ->
+;;; 
+;;; Correctly Classified Instances         145               96.6667 %
+;;; Incorrectly Classified Instances         5                3.3333 %
+;;; Kappa statistic                          0.95  
+;;; Mean absolute error                      0.2296
+;;; Root mean squared error                  0.2854
+;;; Relative absolute error                 51.6667 %
+;;; Root relative squared error             60.553  %
+;;; Total Number of Instances              150     
+;;; 
+;;; 
+;; <-
+;; =>
+;;; {"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}
+;; <=
+
+;; @@
+(compare-class (cls/make-classifier :decision-tree :raced-incremental-logit-boost))
+;; @@
+;; ->
+;;; 
+;;; Correctly Classified Instances          50               33.3333 %
+;;; Incorrectly Classified Instances       100               66.6667 %
+;;; Kappa statistic                          0     
+;;; Mean absolute error                      0.4444
+;;; Root mean squared error                  0.4714
+;;; Relative absolute error                100      %
+;;; Root relative squared error            100      %
+;;; Total Number of Instances              150     
+;;; 
+;;; 
+;; <-
+;; =>
+;;; {"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}
+;; <=
+
+;; @@
+
+;; @@
