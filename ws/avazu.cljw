@@ -1,0 +1,1067 @@
+;; gorilla-repl.fileformat = 1
+
+;; **
+;;; # Avazu.
+;;; 
+;;; Load the avazu dataset in chunks and train a classifier on it.
+;; **
+
+;; @@
+(ns energized-mist2
+  (:require [gorilla-plot.core :as plot]
+            [incanter.core :as inc]
+            [incanter.io :as incio]
+            [incanter.datasets :as incds]
+            [clj-ml.data :as cd]
+            [clj-ml.classifiers :as cls]
+            [clj-ml.utils :as ut]
+            [clojure.core.reducers :as r]
+            [iota :as iota])
+(:import 
+           (weka.core Instance Instances)
+           (weka.classifiers.meta  RotationForest)))
+
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}
+;; <=
+
+;; @@
+(def fpath "/media/kiran/5A76869F76867B8F/datasets/avazu_click_thru_rate_prediction/train_100.csv")
+(def fpath100k "/media/kiran/5A76869F76867B8F/datasets/avazu_click_thru_rate_prediction/train100k.csv")
+(def fpath300k "/media/kiran/5A76869F76867B8F/datasets/avazu_click_thru_rate_prediction/train300k.csv")
+(def fpath1m "/media/kiran/5A76869F76867B8F/datasets/avazu_click_thru_rate_prediction/train1m.csv")
+(def fpathfull "/media/kiran/5A76869F76867B8F/datasets/avazu_click_thru_rate_prediction/train.csv")
+
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist2/fpathfull</span>","value":"#'energized-mist2/fpathfull"}
+;; <=
+
+;; @@
+(def cols [ "id","click","hour","C1","banner_pos","site_id","site_domain","site_category","app_id","app_domain","app_category","device_id","device_ip","device_model","device_type","device_conn_type","C14","C15","C16","C17","C18","C19","C20","C21"])
+
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist2/cols</span>","value":"#'energized-mist2/cols"}
+;; <=
+
+;; @@
+(count cols)
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-unkown'>24</span>","value":"24"}
+;; <=
+
+;; @@
+(defn parseline 
+       [inp]
+  (let [k (vec inp)]
+        (concat ;[(k 0)] removed id column
+          [(keyword (k 1))]
+		(for [i (subvec k 2 5)] (Integer/parseInt i))
+          (for [i (subvec k 5 11)] (keyword i))
+          ;removed the last 7,8 integer columns
+          [(keyword (k 13))] ;add the last categorical column
+		;(for [i (subvec k 5 14)] (keyword i)) ;removed the last 2 integer columns
+		(for [i (subvec k 14)] (Integer/parseInt i)) 
+	)))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist2/parseline</span>","value":"#'energized-mist2/parseline"}
+;; <=
+
+;; **
+;;; Creates a set of the categorical column values. There are 8 categorical columns here, 5-13 . Lets find the number of uniques in 9 columns, from 5 to 13. This will be used to define the dataset, since each of these are categorical columns, and the values need to be predefined.
+;; **
+
+;; @@
+(def numcat 7)
+;ignoring the columns 7,8 since they have large # of values.
+
+(defn redfn 
+  ([] (vec (repeat numcat #{})))
+  ([acc lst]
+   (do
+     ;(println acc " " lst)
+   (mapv #(conj %1 %2) acc lst))))
+
+(defn mergefn 
+  ([] (vec (repeat numcat #{})))
+  ([a b] (mapv #(into %1 %2) a b)))
+
+
+(defn getset 
+  []
+(->> (iota/seq fpathfull)
+     rest
+     ;(take 10)
+    (r/map (fn[x] (clojure.string/split x #",")))
+     (r/map (comp vec parseline))
+     (r/map (fn[x] (subvec x 4 (+ 4 numcat))))
+ 	 (r/fold mergefn redfn)    
+     ;r/foldcat
+     ;(take 2)
+    ))
+
+;(def setmaps (mapv getset bcols))./weka/src/main/java/weka/classifiers/trees/DecisionStump.java
+(try
+(def catcols (getset))
+  (catch Exception e
+    (clojure.stacktrace/print-stack-trace e)))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist2/catcols</span>","value":"#'energized-mist2/catcols"}
+;; <=
+
+;; @@
+(mapv count catcols)
+;; @@
+;; =>
+;;; {"type":"list-like","open":"<span class='clj-vector'>[</span>","close":"<span class='clj-vector'>]</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-unkown'>4737</span>","value":"4737"},{"type":"html","content":"<span class='clj-unkown'>7745</span>","value":"7745"},{"type":"html","content":"<span class='clj-unkown'>26</span>","value":"26"},{"type":"html","content":"<span class='clj-unkown'>8552</span>","value":"8552"},{"type":"html","content":"<span class='clj-unkown'>559</span>","value":"559"},{"type":"html","content":"<span class='clj-unkown'>36</span>","value":"36"},{"type":"html","content":"<span class='clj-unkown'>8251</span>","value":"8251"}],"value":"[4737 7745 26 8552 559 36 8251]"}
+;; <=
+
+;; @@
+(defn gc [catcols cid]
+	(mapv keyword (catcols cid)))
+
+(defn gc1 [cid] (gc catcols cid))
+
+(def kcols 
+  [;{:id nil} removed id col
+   {:click [:0 :1]} :hour :C1 :banner_pos {:site_id (gc1 0)} {:site_domain (gc1 1)} {:site_category (gc1 2)} {:app_id (gc1 3)} {:app_domain (gc1 4)} {:app_category (gc1 5)} 
+   ; {:device_id (gc1 6)} {:device_ip (gc1 7)} 
+   {:device_model (gc1 6)} :device_type :device_conn_type :C14 :C15 :C16 :C17 :C18 :C19 :C20 :C21])
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist2/kcols</span>","value":"#'energized-mist2/kcols"}
+;; <=
+
+;; **
+;;; For 1 million instance, the unique counts for the category columns are [2075 2030 21 2309 156 23 83430 313001 4581]. Loading the large number of unique counts into the header field of the dataset throws outofmemory errors. Therefore we'll drop the columns with a large number of uniques (7,8)
+;; **
+
+;; @@
+(defn parseline2 
+       [inp]
+  (let [k (vec inp)]
+        (concat ;[(k 0)] removed id column
+          [(keyword (k 1))]
+		(for [i (subvec k 2 5)] (Integer/parseInt i))
+		(for [i (subvec k 5 11)] (keyword i))
+          ;removed the last 7,8 integer columns
+          [(keyword (k 13))] ;add the last categorical column
+		(for [i (subvec k 14)] (Integer/parseInt i)) 
+	)))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist2/parseline2</span>","value":"#'energized-mist2/parseline2"}
+;; <=
+
+;; @@
+(def ids 
+  (-> 
+  	(cd/make-dataset "i2" kcols 0)
+    (cd/dataset-set-class 0)
+    ))
+  ;(catch Exception e
+  ;  (println (.getMessage e))))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist2/ids</span>","value":"#'energized-mist2/ids"}
+;; <=
+
+;; **
+;;; Lets load the avazu data and create an Instance object for each line. We need to previously create the dataset, with 0 instances.
+;; **
+
+;; @@
+(defn add-inst [ds instlist]
+  (reduce #(cd/dataset-add %1 %2) ds instlist)) 
+
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist2/add-inst</span>","value":"#'energized-mist2/add-inst"}
+;; <=
+
+;; @@
+(def sds
+  (add-inst ids
+(->> (iota/subvec (iota/vec fpath300k) 1 10000)
+    (mapv (fn[x] (clojure.string/split x #",")))
+    (map parseline2)
+    (map #(cd/make-instance ids %))    
+     ;(take 2)
+     ;(map count)
+    )
+))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist2/sds</span>","value":"#'energized-mist2/sds"}
+;; <=
+
+;; @@
+(class sds)
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-class'>weka.core.Instances</span>","value":"weka.core.Instances"}
+;; <=
+
+;; **
+;;; 
+;; **
+
+;; @@
+(mapv count catcols)
+;; @@
+;; =>
+;;; {"type":"list-like","open":"<span class='clj-vector'>[</span>","close":"<span class='clj-vector'>]</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-unkown'>4737</span>","value":"4737"},{"type":"html","content":"<span class='clj-unkown'>7745</span>","value":"7745"},{"type":"html","content":"<span class='clj-unkown'>26</span>","value":"26"},{"type":"html","content":"<span class='clj-unkown'>8552</span>","value":"8552"},{"type":"html","content":"<span class='clj-unkown'>559</span>","value":"559"},{"type":"html","content":"<span class='clj-unkown'>36</span>","value":"36"},{"type":"html","content":"<span class='clj-unkown'>2686408</span>","value":"2686408"},{"type":"html","content":"<span class='clj-unkown'>6729486</span>","value":"6729486"}],"value":"[4737 7745 26 8552 559 36 2686408 6729486]"}
+;; <=
+
+;; @@
+(try 
+  (def classifier (cls/make-classifier :meta :raced-incremental-logit-boost {:size-of-validation-set 2000 :name-of-base-classifier "weka.classifiers.trees.DecisionStump" } ))                                                                             
+  (catch Exception e
+    (clojure.stacktrace/print-stack-trace e)))
+
+;(.getValidationChunkSize classifier)
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist2/classifier</span>","value":"#'energized-mist2/classifier"}
+;; <=
+
+;; @@
+(try
+(cls/classifier-train classifier sds)
+  (catch Exception e
+    (clojure.stacktrace/print-stack-trace e)))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-unkown'>#&lt;RacedIncrementalLogitBoost RacedIncrementalLogitBoost: Best committee on validation data\nBase classifiers: \n\nModel 1\n\tClass 1 (click=0)\n\nDecision Stump\n\nClassifications\n\nC21 &lt;= 39.5 : 0.5217391304347826\nC21 &gt; 39.5 : 1.411764705882353\nC21 is missing : 1.248\n\n\n\tClass 2 (click=1)\n\nDecision Stump\n\nClassifications\n\nC21 &lt;= 39.5 : -0.5217391304347826\nC21 &gt; 39.5 : -1.411764705882353\nC21 is missing : -1.248\n\n\nModel 2\n\tClass 1 (click=0)\n\nDecision Stump\n\nClassifications\n\nC21 &lt;= 14.0 : -2.6849554603609898\nC21 &gt; 14.0 : 0.35090306054495735\nC21 is missing : 0.318336560734559\n\n\n\tClass 2 (click=1)\n\nDecision Stump\n\nClassifications\n\nC21 &lt;= 14.0 : 2.68495546036099\nC21 &gt; 14.0 : -0.35090306054495735\nC21 is missing : -0.318336560734559\n\n\nModel 3\n\tClass 1 (click=0)\n\nDecision Stump\n\nClassifications\n\nC17 &lt;= 1761.0 : -0.6553520813503841\nC17 &gt; 1761.0 : 0.2497589799090006\nC17 is missing : -0.12278900046890907\n\n\n\tClass 2 (click=1)\n\nDecision Stump\n\nClassifications\n\nC17 &lt;= 1761.0 : 0.6553520813503781\nC17 &gt; 1761.0 : -0.24975897990899892\nC17 is missing : 0.12278900046890856\n\n\nModel 4\n\tClass 1 (click=0)\n\nDecision Stump\n\nClassifications\n\nsite_id = 93eaba74 : -4.0\nsite_id != 93eaba74 : 0.3055881421817336\nsite_id is missing : 0.25389050533933566\n\n\n\tClass 2 (click=1)\n\nDecision Stump\n\nClassifications\n\nsite_id = 93eaba74 : 4.0\nsite_id != 93eaba74 : -0.3055881421817337\nsite_id is missing : -0.25389050533933594\n\nNumber of models: 4\nChunk size per model: 500\n&gt;</span>","value":"#<RacedIncrementalLogitBoost RacedIncrementalLogitBoost: Best committee on validation data\nBase classifiers: \n\nModel 1\n\tClass 1 (click=0)\n\nDecision Stump\n\nClassifications\n\nC21 <= 39.5 : 0.5217391304347826\nC21 > 39.5 : 1.411764705882353\nC21 is missing : 1.248\n\n\n\tClass 2 (click=1)\n\nDecision Stump\n\nClassifications\n\nC21 <= 39.5 : -0.5217391304347826\nC21 > 39.5 : -1.411764705882353\nC21 is missing : -1.248\n\n\nModel 2\n\tClass 1 (click=0)\n\nDecision Stump\n\nClassifications\n\nC21 <= 14.0 : -2.6849554603609898\nC21 > 14.0 : 0.35090306054495735\nC21 is missing : 0.318336560734559\n\n\n\tClass 2 (click=1)\n\nDecision Stump\n\nClassifications\n\nC21 <= 14.0 : 2.68495546036099\nC21 > 14.0 : -0.35090306054495735\nC21 is missing : -0.318336560734559\n\n\nModel 3\n\tClass 1 (click=0)\n\nDecision Stump\n\nClassifications\n\nC17 <= 1761.0 : -0.6553520813503841\nC17 > 1761.0 : 0.2497589799090006\nC17 is missing : -0.12278900046890907\n\n\n\tClass 2 (click=1)\n\nDecision Stump\n\nClassifications\n\nC17 <= 1761.0 : 0.6553520813503781\nC17 > 1761.0 : -0.24975897990899892\nC17 is missing : 0.12278900046890856\n\n\nModel 4\n\tClass 1 (click=0)\n\nDecision Stump\n\nClassifications\n\nsite_id = 93eaba74 : -4.0\nsite_id != 93eaba74 : 0.3055881421817336\nsite_id is missing : 0.25389050533933566\n\n\n\tClass 2 (click=1)\n\nDecision Stump\n\nClassifications\n\nsite_id = 93eaba74 : 4.0\nsite_id != 93eaba74 : -0.3055881421817337\nsite_id is missing : -0.25389050533933594\n\nNumber of models: 4\nChunk size per model: 500\n>"}
+;; <=
+
+;; @@
+(def evaluation (cls/classifier-evaluate classifier :cross-validation sds 10))
+(println (:summary evaluation))
+;; @@
+;; ->
+;;; 
+;;; Correctly Classified Instances       82330               82.2494 %
+;;; Incorrectly Classified Instances     17768               17.7506 %
+;;; Kappa statistic                          0.0986
+;;; Mean absolute error                      0.2651
+;;; Root mean squared error                  0.3692
+;;; Relative absolute error                 91.8308 %
+;;; Root relative squared error             97.1854 %
+;;; Total Number of Instances           100098     
+;;; 
+;;; 
+;; <-
+;; =>
+;;; {"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}
+;; <=
+
+;; @@
+(defn logloss
+  [ytrue ypred]
+  (* -1 (apply + 
+         (mapv (fn[yt yp] (+ (* yt (Math/log yp))
+          (* (- 1 yt) (Math/log (- 1 yp))))) ytrue ypred)) (/ 1 (count ytrue))))
+  
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist2/logloss</span>","value":"#'energized-mist2/logloss"}
+;; <=
+
+;; @@
+(defn redfn
+  ;([] ids)
+  [dset inst]
+   ;(do (println "in redfn " (class inst) " cla " (class clsi))
+      (cd/dataset-add dset inst))
+   ;(cls/classifier-update clsi inst)))
+  
+
+(defn mergefn
+  ([] classifier)
+  ([clsi instances]
+   (do (println "in mergefn " (class instances) " cla " (class clsi))
+   (cls/classifier-update clsi instances)))
+  )
+
+(defn get-instances
+  [ids mmapfile start end]
+	(let [ret     
+	(->> (iota/subvec mmapfile start end)
+    (r/map (fn[x] (clojure.string/split x #",")))
+    (r/map parseline2)
+    (r/map #(cd/make-instance ids %)
+           ;#(try 
+           ;   (cd/make-instance ids %)
+           ;   (catch Exception e 
+           ;     (println " got exception " %)
+           ;      (clojure.stacktrace/print-stack-trace e)
+           ;     ))
+           )    
+	(r/reduce redfn ids)
+     ;(take 2)
+     ;(map class)
+    )]
+  ;(println "instance count " (map #(.numInstances %) [ids ret]) )	
+      ret
+  )
+  )
+
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist2/get-instances</span>","value":"#'energized-mist2/get-instances"}
+;; <=
+
+;; @@
+(defn measure 
+  [clsa trainset valset]
+  (let [[trainpred, valpred] (map #(for [i (cd/dataset-seq %)] 
+                                     (int (cls/classifier- clsa i))) [trainset valset])
+        [trainy,valy] (mapv #(for [i (cd/dataset-class-values %)] (Integer/parseInt i))
+                              [trainset valset])
+        eqcntfn (fn[x y] (float (/ 
+                           (count (filter (fn[[a b]] (= a b)) (mapv vector x y))) 
+                                  (count y)
+                           )))]
+    (println " train " (logloss trainpred trainy)  "val "(logloss valpred valy))
+    )
+  )
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist2/measure</span>","value":"#'energized-mist2/measure"}
+;; <=
+
+;; @@
+(* 19 50000)
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-long'>950000</span>","value":"950000"}
+;; <=
+
+;; @@
+(try
+	(let [mmapfile (iota/vec fpathfull)
+          neds (fn []  (-> 
+  				(cd/make-dataset "i2" kcols 0)
+    			(cd/dataset-set-class 0)))
+          sampsize 50000
+          ;40428969
+      	iseq (partition 2 1 (range sampsize 40428969  sampsize))
+        c1 (cls/classifier-train classifier (get-instances (neds) mmapfile 1 sampsize))
+      	x (->> iseq
+           (r/map (fn[[start end]] (get-instances (neds) mmapfile start end)))
+      		(r/reduce (fn[cl instances]                    
+                (let [ret (cls/classifier-update cl instances)]
+                  (println " LLE " (.getBestCommitteeLLEstimate ret))
+      				ret)
+                  )
+              c1))]
+        nil)
+      (catch Exception e
+                    (clojure.stacktrace/print-stack-trace e))
+      )
+;; @@
+;; ->
+;;;  LLE  0.4308078303551715
+;;;  LLE  0.41956857531482505
+;;;  LLE  0.4145398798136109
+;;;  LLE  0.4145398798136109
+;;;  LLE  0.4145064536438683
+;;;  LLE  0.41438818361911295
+;;;  LLE  0.4137562330523384
+;;;  LLE  0.41330822600311246
+;;;  LLE  0.41151903985423954
+;;;  LLE  0.41062831805669847
+;;;  LLE  0.41062831805669847
+;;;  LLE  0.41062831805669847
+;;;  LLE  0.41062831805669847
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41864202799806516
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41055531321881505
+;;;  LLE  0.41055531321881505
+;;;  LLE  0.41055531321881505
+;;;  LLE  0.4161864573690721
+;;;  LLE  0.41472607709926274
+;;;  LLE  0.414501099729066
+;;;  LLE  0.414501099729066
+;;;  LLE  0.414501099729066
+;;;  LLE  0.41449986115570303
+;;;  LLE  0.41449986115570303
+;;;  LLE  0.41449986115570303
+;;;  LLE  0.4143007696216507
+;;;  LLE  0.4142948933933111
+;;;  LLE  0.41385360711759817
+;;;  LLE  0.41301243184438663
+;;;  LLE  0.412824247053564
+;;;  LLE  0.412824247053564
+;;;  LLE  0.412824247053564
+;;;  LLE  0.412824247053564
+;;;  LLE  0.412824247053564
+;;;  LLE  0.412824247053564
+;;;  LLE  0.4128238223104621
+;;;  LLE  0.4128238223104621
+;;;  LLE  0.4128238223104621
+;;;  LLE  0.41250761828895777
+;;;  LLE  0.41246925611611907
+;;;  LLE  0.41246925611611907
+;;;  LLE  0.41246925611611907
+;;;  LLE  0.41246925611611907
+;;;  LLE  0.41246925611611907
+;;;  LLE  0.41246925611611907
+;;;  LLE  0.4124356754528361
+;;;  LLE  0.4122206301413542
+;;;  LLE  0.4122206301413542
+;;;  LLE  0.4122206301413542
+;;;  LLE  0.41216465375216965
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.41212221350469486
+;;;  LLE  0.4121217281461609
+;;;  LLE  0.4121217281461609
+;;;  LLE  0.4121217281461609
+;;;  LLE  0.4121217281461609
+;;;  LLE  0.4121217281461609
+;;;  LLE  0.4121217281461609
+;;;  LLE  0.41186910500334006
+;;;  LLE  0.41177340572909965
+;;;  LLE  0.41177340572909965
+;;;  LLE  0.41177340572909965
+;;;  LLE  0.41177340572909965
+;;;  LLE  0.41154339240969884
+;;;  LLE  0.4115314931595022
+;;;  LLE  0.4115314931595022
+;;;  LLE  0.4115314931595022
+;;;  LLE  0.4115314931595022
+;;;  LLE  0.411526852828691
+;;;  LLE  0.411526852828691
+;;;  LLE  0.411526852828691
+;;;  LLE  0.41152076551230243
+;;;  LLE  0.41152076551230243
+;;;  LLE  0.41152076551230243
+;;;  LLE  0.41152076551230243
+;;;  LLE  0.4115169899194921
+;;;  LLE  0.4115169899194921
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.411255608375387
+;;;  LLE  0.4106213507382004
+;;;  LLE  0.4106213507382004
+;;;  LLE  0.41061419601889215
+;;;  LLE  0.41061419601889215
+;;;  LLE  0.40850565911136716
+;;;  LLE  0.40850565911136716
+;;;  LLE  0.40850565911136716
+;;;  LLE  0.4084569852985705
+;;;  LLE  0.4084569852985705
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40728244607894515
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392816035322
+;;;  LLE  0.4072392816035322
+;;;  LLE  0.40720197442914513
+;;;  LLE  0.40720197442914513
+;;;  LLE  0.40695526177040664
+;;;  LLE  0.4069088128461013
+;;;  LLE  0.4069088128461013
+;;;  LLE  0.4068863362364493
+;;;  LLE  0.4068863362364493
+;;;  LLE  0.4068863362364493
+;;;  LLE  0.4068863362364493
+;;;  LLE  0.4068863362364493
+;;;  LLE  0.4068863362364493
+;;;  LLE  0.4068863362364493
+;;;  LLE  0.4068671429962901
+;;;  LLE  0.4068671429962901
+;;;  LLE  0.4068671429962901
+;;;  LLE  0.4068671429962901
+;;;  LLE  0.4068671429962901
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.3990314557345163
+;;;  LLE  0.3990314557345163
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.398619780016864
+;;;  LLE  0.398619780016864
+;;;  LLE  0.398596474570708
+;;;  LLE  0.398596474570708
+;;;  LLE  0.3985724184534062
+;;;  LLE  0.3985724184534062
+;;;  LLE  0.3985724184534062
+;;;  LLE  0.39857165587340243
+;;;  LLE  0.39857150741444536
+;;;  LLE  0.39857150741444536
+;;;  LLE  0.39857150741444536
+;;;  LLE  0.39857150741444536
+;;;  LLE  0.39857150741444536
+;;;  LLE  0.39857150741444536
+;;;  LLE  0.3985172866650947
+;;;  LLE  0.398496473437902
+;;;  LLE  0.3984913722981597
+;;;  LLE  0.3980345273732432
+;;;  LLE  0.3980345273732432
+;;;  LLE  0.3978749607007007
+;;;  LLE  0.3978749607007007
+;;;  LLE  0.397872635745978
+;;;  LLE  0.397872635745978
+;;;  LLE  0.397872635745978
+;;;  LLE  0.397872635745978
+;;;  LLE  0.397872635745978
+;;;  LLE  0.3978726161359543
+;;;  LLE  0.3978726161359543
+;;;  LLE  0.3978726161359543
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.4024085669635027
+;;;  LLE  0.4024085669635027
+;;;  LLE  0.4024085669635027
+;;;  LLE  0.4024085669635027
+;;;  LLE  0.4024085669635027
+;;;  LLE  0.4024085669635027
+;;;  LLE  0.4023783776871156
+;;;  LLE  0.4023783776871156
+;;;  LLE  0.4023783776871156
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39733627784215814
+;;;  LLE  0.39733627784215814
+;;;  LLE  0.39733627784215814
+;;;  LLE  0.39733627784215814
+;;;  LLE  0.39733627784215814
+;;;  LLE  0.39733627784215814
+;;;  LLE  0.39733627784215814
+;;;  LLE  0.39733627784215814
+;;;  LLE  0.39733627784215814
+;;;  LLE  0.39733627784215814
+;;;  LLE  0.39706254693207094
+;;;  LLE  0.39706254693207094
+;;;  LLE  0.39706254693207094
+;;;  LLE  0.39706254693207094
+;;;  LLE  0.39706254693207094
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.39706177862603165
+;;;  LLE  0.39706177862603165
+;;;  LLE  0.39706177862603165
+;;;  LLE  0.39706177862603165
+;;;  LLE  0.39706177862603165
+;;;  LLE  0.39706177862603165
+;;;  LLE  0.39706177862603165
+;;; 
+;; <-
+
+;; @@
+
+;; @@
