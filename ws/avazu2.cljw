@@ -1,0 +1,1078 @@
+;; gorilla-repl.fileformat = 1
+
+;; **
+;;; # Avazu.
+;;; 
+;;; Load the avazu dataset in chunks and train a classifier on it.
+;; **
+
+;; @@
+(ns avazu2
+  (:require [gorilla-plot.core :as plot]
+            ;[incanter.core :as inc]
+            ;[incanter.io :as incio]
+            ;[incanter.datasets :as incds]
+            [clj-ml.data :as cd]
+            [clj-ml.io :as cio]
+            [clj-ml.classifiers :as cls]
+            [clj-ml.utils :as ut]
+            [clj-ml.filters :as filters]
+            [clojure.core.reducers :as r]
+            [clojure.data.csv :as csv]
+            [clojure.java.io :as io]
+            [iota :as iota])
+(:import 
+           (weka.core Instance Instances)
+           (weka.classifiers.meta  RotationForest)))
+
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}
+;; <=
+
+;; @@
+(def rootpath "/home/kiran/data/avazuctr/")
+(def fpath (str rootpath "train_100.csv"))
+(def fpath100k (str rootpath "train100k.csv"))
+
+(def fpathfull (str rootpath "train"))
+
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;avazu2/fpathfull</span>","value":"#'avazu2/fpathfull"}
+;; <=
+
+;; @@
+(def cols [ "id","click","hour","C1","banner_pos","site_id","site_domain","site_category","app_id","app_domain","app_category","device_id","device_ip","device_model","device_type","device_conn_type","C14","C15","C16","C17","C18","C19","C20","C21"])
+
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;avazu2/cols</span>","value":"#'avazu2/cols"}
+;; <=
+
+;; @@
+(count cols)
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-unkown'>24</span>","value":"24"}
+;; <=
+
+;; @@
+(def ds (cio/load-instances :csv fpath))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;avazu2/ds</span>","value":"#'avazu2/ds"}
+;; <=
+
+;; @@
+(cd/dataset-format ds)
+;; @@
+;; =>
+;;; {"type":"list-like","open":"<span class='clj-vector'>[</span>","close":"<span class='clj-vector'>]</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:id</span>","value":":id"},{"type":"html","content":"<span class='clj-keyword'>:click</span>","value":":click"},{"type":"html","content":"<span class='clj-keyword'>:hour</span>","value":":hour"},{"type":"html","content":"<span class='clj-keyword'>:C1</span>","value":":C1"},{"type":"html","content":"<span class='clj-keyword'>:banner_pos</span>","value":":banner_pos"},{"type":"list-like","open":"<span class='clj-map'>{</span>","close":"<span class='clj-map'>}</span>","separator":", ","items":[{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:site_id</span>","value":":site_id"},{"type":"list-like","open":"<span class='clj-lazy-seq'>(</span>","close":"<span class='clj-lazy-seq'>)</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:1fbe01fe</span>","value":":1fbe01fe"},{"type":"html","content":"<span class='clj-keyword'>:fe8cc448</span>","value":":fe8cc448"},{"type":"html","content":"<span class='clj-keyword'>:d6137915</span>","value":":d6137915"},{"type":"html","content":"<span class='clj-keyword'>:8fda644b</span>","value":":8fda644b"},{"type":"html","content":"<span class='clj-keyword'>:e151e245</span>","value":":e151e245"},{"type":"html","content":"<span class='clj-keyword'>:84c7ba46</span>","value":":84c7ba46"},{"type":"html","content":"<span class='clj-keyword'>:9e8cf15d</span>","value":":9e8cf15d"},{"type":"html","content":"<span class='clj-keyword'>:85f751fd</span>","value":":85f751fd"},{"type":"html","content":"<span class='clj-keyword'>:d9750ee7</span>","value":":d9750ee7"},{"type":"html","content":"<span class='clj-keyword'>:0c2fe9d6</span>","value":":0c2fe9d6"},{"type":"html","content":"<span class='clj-keyword'>:543a539e</span>","value":":543a539e"},{"type":"html","content":"<span class='clj-keyword'>:f84e52b6</span>","value":":f84e52b6"},{"type":"html","content":"<span class='clj-keyword'>:030440fe</span>","value":":030440fe"},{"type":"html","content":"<span class='clj-keyword'>:6ec06dbd</span>","value":":6ec06dbd"},{"type":"html","content":"<span class='clj-keyword'>:0eb72673</span>","value":":0eb72673"},{"type":"html","content":"<span class='clj-keyword'>:5ee41ff2</span>","value":":5ee41ff2"},{"type":"html","content":"<span class='clj-keyword'>:4dd0a958</span>","value":":4dd0a958"},{"type":"html","content":"<span class='clj-keyword'>:6256f5b4</span>","value":":6256f5b4"},{"type":"html","content":"<span class='clj-keyword'>:0aab7161</span>","value":":0aab7161"},{"type":"html","content":"<span class='clj-keyword'>:e023ba3e</span>","value":":e023ba3e"},{"type":"html","content":"<span class='clj-keyword'>:5b08c53b</span>","value":":5b08c53b"},{"type":"html","content":"<span class='clj-keyword'>:f5476ff8</span>","value":":f5476ff8"}],"value":"(:1fbe01fe :fe8cc448 :d6137915 :8fda644b :e151e245 :84c7ba46 :9e8cf15d :85f751fd :d9750ee7 :0c2fe9d6 :543a539e :f84e52b6 :030440fe :6ec06dbd :0eb72673 :5ee41ff2 :4dd0a958 :6256f5b4 :0aab7161 :e023ba3e :5b08c53b :f5476ff8)"}],"value":"[:site_id (:1fbe01fe :fe8cc448 :d6137915 :8fda644b :e151e245 :84c7ba46 :9e8cf15d :85f751fd :d9750ee7 :0c2fe9d6 :543a539e :f84e52b6 :030440fe :6ec06dbd :0eb72673 :5ee41ff2 :4dd0a958 :6256f5b4 :0aab7161 :e023ba3e :5b08c53b :f5476ff8)]"}],"value":"{:site_id (:1fbe01fe :fe8cc448 :d6137915 :8fda644b :e151e245 :84c7ba46 :9e8cf15d :85f751fd :d9750ee7 :0c2fe9d6 :543a539e :f84e52b6 :030440fe :6ec06dbd :0eb72673 :5ee41ff2 :4dd0a958 :6256f5b4 :0aab7161 :e023ba3e :5b08c53b :f5476ff8)}"},{"type":"list-like","open":"<span class='clj-map'>{</span>","close":"<span class='clj-map'>}</span>","separator":", ","items":[{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:site_domain</span>","value":":site_domain"},{"type":"list-like","open":"<span class='clj-lazy-seq'>(</span>","close":"<span class='clj-lazy-seq'>)</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:f3845767</span>","value":":f3845767"},{"type":"html","content":"<span class='clj-keyword'>:9166c161</span>","value":":9166c161"},{"type":"html","content":"<span class='clj-keyword'>:bb1ef334</span>","value":":bb1ef334"},{"type":"html","content":"<span class='clj-keyword'>:25d4cfcd</span>","value":":25d4cfcd"},{"type":"html","content":"<span class='clj-keyword'>:7e091613</span>","value":":7e091613"},{"type":"html","content":"<span class='clj-keyword'>:c4e18dd6</span>","value":":c4e18dd6"},{"type":"html","content":"<span class='clj-keyword'>:0d3cb7be</span>","value":":0d3cb7be"},{"type":"html","content":"<span class='clj-keyword'>:98572c79</span>","value":":98572c79"},{"type":"html","content":"<span class='clj-keyword'>:27e3c518</span>","value":":27e3c518"},{"type":"html","content":"<span class='clj-keyword'>:c7ca3108</span>","value":":c7ca3108"},{"type":"html","content":"<span class='clj-keyword'>:d7e2f29b</span>","value":":d7e2f29b"},{"type":"html","content":"<span class='clj-keyword'>:08ba7db9</span>","value":":08ba7db9"},{"type":"html","content":"<span class='clj-keyword'>:d262cf1e</span>","value":":d262cf1e"},{"type":"html","content":"<span class='clj-keyword'>:d2f72222</span>","value":":d2f72222"},{"type":"html","content":"<span class='clj-keyword'>:17d996e6</span>","value":":17d996e6"},{"type":"html","content":"<span class='clj-keyword'>:79cf0c8d</span>","value":":79cf0c8d"},{"type":"html","content":"<span class='clj-keyword'>:28f93029</span>","value":":28f93029"},{"type":"html","content":"<span class='clj-keyword'>:660aeadc</span>","value":":660aeadc"},{"type":"html","content":"<span class='clj-keyword'>:75f9ddc3</span>","value":":75f9ddc3"},{"type":"html","content":"<span class='clj-keyword'>:7687a86e</span>","value":":7687a86e"},{"type":"html","content":"<span class='clj-keyword'>:00e1b9c0</span>","value":":00e1b9c0"}],"value":"(:f3845767 :9166c161 :bb1ef334 :25d4cfcd :7e091613 :c4e18dd6 :0d3cb7be :98572c79 :27e3c518 :c7ca3108 :d7e2f29b :08ba7db9 :d262cf1e :d2f72222 :17d996e6 :79cf0c8d :28f93029 :660aeadc :75f9ddc3 :7687a86e :00e1b9c0)"}],"value":"[:site_domain (:f3845767 :9166c161 :bb1ef334 :25d4cfcd :7e091613 :c4e18dd6 :0d3cb7be :98572c79 :27e3c518 :c7ca3108 :d7e2f29b :08ba7db9 :d262cf1e :d2f72222 :17d996e6 :79cf0c8d :28f93029 :660aeadc :75f9ddc3 :7687a86e :00e1b9c0)]"}],"value":"{:site_domain (:f3845767 :9166c161 :bb1ef334 :25d4cfcd :7e091613 :c4e18dd6 :0d3cb7be :98572c79 :27e3c518 :c7ca3108 :d7e2f29b :08ba7db9 :d262cf1e :d2f72222 :17d996e6 :79cf0c8d :28f93029 :660aeadc :75f9ddc3 :7687a86e :00e1b9c0)}"},{"type":"list-like","open":"<span class='clj-map'>{</span>","close":"<span class='clj-map'>}</span>","separator":", ","items":[{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:site_category</span>","value":":site_category"},{"type":"list-like","open":"<span class='clj-lazy-seq'>(</span>","close":"<span class='clj-lazy-seq'>)</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:28905ebd</span>","value":":28905ebd"},{"type":"html","content":"<span class='clj-keyword'>:0569f928</span>","value":":0569f928"},{"type":"html","content":"<span class='clj-keyword'>:f028772b</span>","value":":f028772b"},{"type":"html","content":"<span class='clj-keyword'>:50e219e0</span>","value":":50e219e0"},{"type":"html","content":"<span class='clj-keyword'>:3e814130</span>","value":":3e814130"},{"type":"html","content":"<span class='clj-keyword'>:76b2941d</span>","value":":76b2941d"},{"type":"html","content":"<span class='clj-keyword'>:f66779e6</span>","value":":f66779e6"}],"value":"(:28905ebd :0569f928 :f028772b :50e219e0 :3e814130 :76b2941d :f66779e6)"}],"value":"[:site_category (:28905ebd :0569f928 :f028772b :50e219e0 :3e814130 :76b2941d :f66779e6)]"}],"value":"{:site_category (:28905ebd :0569f928 :f028772b :50e219e0 :3e814130 :76b2941d :f66779e6)}"},{"type":"list-like","open":"<span class='clj-map'>{</span>","close":"<span class='clj-map'>}</span>","separator":", ","items":[{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:app_id</span>","value":":app_id"},{"type":"list-like","open":"<span class='clj-lazy-seq'>(</span>","close":"<span class='clj-lazy-seq'>)</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:ecad2386</span>","value":":ecad2386"},{"type":"html","content":"<span class='clj-keyword'>:98fed791</span>","value":":98fed791"},{"type":"html","content":"<span class='clj-keyword'>:66a5f0f3</span>","value":":66a5f0f3"},{"type":"html","content":"<span class='clj-keyword'>:ffc6ffd0</span>","value":":ffc6ffd0"},{"type":"html","content":"<span class='clj-keyword'>:54c5d545</span>","value":":54c5d545"},{"type":"html","content":"<span class='clj-keyword'>:685d1c4c</span>","value":":685d1c4c"},{"type":"html","content":"<span class='clj-keyword'>:d2bb6502</span>","value":":d2bb6502"},{"type":"html","content":"<span class='clj-keyword'>:0acbeaa3</span>","value":":0acbeaa3"},{"type":"html","content":"<span class='clj-keyword'>:e2a1ca37</span>","value":":e2a1ca37"},{"type":"html","content":"<span class='clj-keyword'>:a607e6a7</span>","value":":a607e6a7"},{"type":"html","content":"<span class='clj-keyword'>:396df801</span>","value":":396df801"},{"type":"html","content":"<span class='clj-keyword'>:a079ef6b</span>","value":":a079ef6b"},{"type":"html","content":"<span class='clj-keyword'>:1779deee</span>","value":":1779deee"},{"type":"html","content":"<span class='clj-keyword'>:febd1138</span>","value":":febd1138"},{"type":"html","content":"<span class='clj-keyword'>:39947756</span>","value":":39947756"},{"type":"html","content":"<span class='clj-keyword'>:e2fcccd2</span>","value":":e2fcccd2"},{"type":"html","content":"<span class='clj-keyword'>:a37bf1e4</span>","value":":a37bf1e4"},{"type":"html","content":"<span class='clj-keyword'>:9c13b419</span>","value":":9c13b419"},{"type":"html","content":"<span class='clj-keyword'>:c51f82bc</span>","value":":c51f82bc"}],"value":"(:ecad2386 :98fed791 :66a5f0f3 :ffc6ffd0 :54c5d545 :685d1c4c :d2bb6502 :0acbeaa3 :e2a1ca37 :a607e6a7 :396df801 :a079ef6b :1779deee :febd1138 :39947756 :e2fcccd2 :a37bf1e4 :9c13b419 :c51f82bc)"}],"value":"[:app_id (:ecad2386 :98fed791 :66a5f0f3 :ffc6ffd0 :54c5d545 :685d1c4c :d2bb6502 :0acbeaa3 :e2a1ca37 :a607e6a7 :396df801 :a079ef6b :1779deee :febd1138 :39947756 :e2fcccd2 :a37bf1e4 :9c13b419 :c51f82bc)]"}],"value":"{:app_id (:ecad2386 :98fed791 :66a5f0f3 :ffc6ffd0 :54c5d545 :685d1c4c :d2bb6502 :0acbeaa3 :e2a1ca37 :a607e6a7 :396df801 :a079ef6b :1779deee :febd1138 :39947756 :e2fcccd2 :a37bf1e4 :9c13b419 :c51f82bc)}"},{"type":"list-like","open":"<span class='clj-map'>{</span>","close":"<span class='clj-map'>}</span>","separator":", ","items":[{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:app_domain</span>","value":":app_domain"},{"type":"list-like","open":"<span class='clj-lazy-seq'>(</span>","close":"<span class='clj-lazy-seq'>)</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:7801e8d9</span>","value":":7801e8d9"},{"type":"html","content":"<span class='clj-keyword'>:d9b5648e</span>","value":":d9b5648e"},{"type":"html","content":"<span class='clj-keyword'>:2347f47a</span>","value":":2347f47a"},{"type":"html","content":"<span class='clj-keyword'>:45a51db4</span>","value":":45a51db4"},{"type":"html","content":"<span class='clj-keyword'>:82e27996</span>","value":":82e27996"},{"type":"html","content":"<span class='clj-keyword'>:5c5a694b</span>","value":":5c5a694b"}],"value":"(:7801e8d9 :d9b5648e :2347f47a :45a51db4 :82e27996 :5c5a694b)"}],"value":"[:app_domain (:7801e8d9 :d9b5648e :2347f47a :45a51db4 :82e27996 :5c5a694b)]"}],"value":"{:app_domain (:7801e8d9 :d9b5648e :2347f47a :45a51db4 :82e27996 :5c5a694b)}"},{"type":"list-like","open":"<span class='clj-map'>{</span>","close":"<span class='clj-map'>}</span>","separator":", ","items":[{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:app_category</span>","value":":app_category"},{"type":"list-like","open":"<span class='clj-lazy-seq'>(</span>","close":"<span class='clj-lazy-seq'>)</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:07d7df22</span>","value":":07d7df22"},{"type":"html","content":"<span class='clj-keyword'>:0f2161f8</span>","value":":0f2161f8"},{"type":"html","content":"<span class='clj-keyword'>:cef3e649</span>","value":":cef3e649"},{"type":"html","content":"<span class='clj-keyword'>:8ded1f7a</span>","value":":8ded1f7a"},{"type":"html","content":"<span class='clj-keyword'>:f95efa07</span>","value":":f95efa07"},{"type":"html","content":"<span class='clj-keyword'>:75d80bbe</span>","value":":75d80bbe"}],"value":"(:07d7df22 :0f2161f8 :cef3e649 :8ded1f7a :f95efa07 :75d80bbe)"}],"value":"[:app_category (:07d7df22 :0f2161f8 :cef3e649 :8ded1f7a :f95efa07 :75d80bbe)]"}],"value":"{:app_category (:07d7df22 :0f2161f8 :cef3e649 :8ded1f7a :f95efa07 :75d80bbe)}"},{"type":"list-like","open":"<span class='clj-map'>{</span>","close":"<span class='clj-map'>}</span>","separator":", ","items":[{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:device_id</span>","value":":device_id"},{"type":"list-like","open":"<span class='clj-lazy-seq'>(</span>","close":"<span class='clj-lazy-seq'>)</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:a99f214a</span>","value":":a99f214a"},{"type":"html","content":"<span class='clj-keyword'>:c357dbff</span>","value":":c357dbff"},{"type":"html","content":"<span class='clj-keyword'>:fb23c543</span>","value":":fb23c543"},{"type":"html","content":"<span class='clj-keyword'>:9af87478</span>","value":":9af87478"},{"type":"html","content":"<span class='clj-keyword'>:6a943594</span>","value":":6a943594"},{"type":"html","content":"<span class='clj-keyword'>:4b2309e9</span>","value":":4b2309e9"},{"type":"html","content":"<span class='clj-keyword'>:432cd280</span>","value":":432cd280"},{"type":"html","content":"<span class='clj-keyword'>:890abcbb</span>","value":":890abcbb"},{"type":"html","content":"<span class='clj-keyword'>:767a174e</span>","value":":767a174e"},{"type":"html","content":"<span class='clj-keyword'>:a2cbb1e0</span>","value":":a2cbb1e0"},{"type":"html","content":"<span class='clj-keyword'>:1ab3feec</span>","value":":1ab3feec"}],"value":"(:a99f214a :c357dbff :fb23c543 :9af87478 :6a943594 :4b2309e9 :432cd280 :890abcbb :767a174e :a2cbb1e0 :1ab3feec)"}],"value":"[:device_id (:a99f214a :c357dbff :fb23c543 :9af87478 :6a943594 :4b2309e9 :432cd280 :890abcbb :767a174e :a2cbb1e0 :1ab3feec)]"}],"value":"{:device_id (:a99f214a :c357dbff :fb23c543 :9af87478 :6a943594 :4b2309e9 :432cd280 :890abcbb :767a174e :a2cbb1e0 :1ab3feec)}"},{"type":"list-like","open":"<span class='clj-map'>{</span>","close":"<span class='clj-map'>}</span>","separator":", ","items":[{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:device_ip</span>","value":":device_ip"},{"type":"list-like","open":"<span class='clj-lazy-seq'>(</span>","close":"<span class='clj-lazy-seq'>)</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:ddd2926e</span>","value":":ddd2926e"},{"type":"html","content":"<span class='clj-keyword'>:96809ac8</span>","value":":96809ac8"},{"type":"html","content":"<span class='clj-keyword'>:b3cf8def</span>","value":":b3cf8def"},{"type":"html","content":"<span class='clj-keyword'>:e8275b8f</span>","value":":e8275b8f"},{"type":"html","content":"<span class='clj-keyword'>:9644d0bf</span>","value":":9644d0bf"},{"type":"html","content":"<span class='clj-keyword'>:05241af0</span>","value":":05241af0"},{"type":"html","content":"<span class='clj-keyword'>:b264c159</span>","value":":b264c159"},{"type":"html","content":"<span class='clj-keyword'>:e6f67278</span>","value":":e6f67278"},{"type":"html","content":"<span class='clj-keyword'>:37e8da74</span>","value":":37e8da74"},{"type":"html","content":"<span class='clj-keyword'>:f1ac7184</span>","value":":f1ac7184"},{"type":"html","content":"<span class='clj-keyword'>:5d877109</span>","value":":5d877109"},{"type":"html","content":"<span class='clj-keyword'>:6f407810</span>","value":":6f407810"},{"type":"html","content":"<span class='clj-keyword'>:58811cdf</span>","value":":58811cdf"},{"type":"html","content":"<span class='clj-keyword'>:72aab6df</span>","value":":72aab6df"},{"type":"html","content":"<span class='clj-keyword'>:6dec2796</span>","value":":6dec2796"},{"type":"html","content":"<span class='clj-keyword'>:a4f47b2e</span>","value":":a4f47b2e"},{"type":"html","content":"<span class='clj-keyword'>:9b1fe278</span>","value":":9b1fe278"},{"type":"html","content":"<span class='clj-keyword'>:c26c53cf</span>","value":":c26c53cf"},{"type":"html","content":"<span class='clj-keyword'>:b7a69808</span>","value":":b7a69808"},{"type":"html","content":"<span class='clj-keyword'>:fa60af6b</span>","value":":fa60af6b"},{"type":"html","content":"<span class='clj-keyword'>:8a308c73</span>","value":":8a308c73"},{"type":"html","content":"<span class='clj-keyword'>:1b6530bc</span>","value":":1b6530bc"},{"type":"html","content":"<span class='clj-keyword'>:a2d12b33</span>","value":":a2d12b33"},{"type":"html","content":"<span class='clj-keyword'>:c6563308</span>","value":":c6563308"},{"type":"html","content":"<span class='clj-keyword'>:e99d0c2e</span>","value":":e99d0c2e"},{"type":"html","content":"<span class='clj-keyword'>:69890c7f</span>","value":":69890c7f"},{"type":"html","content":"<span class='clj-keyword'>:c62f7206</span>","value":":c62f7206"},{"type":"html","content":"<span class='clj-keyword'>:2a2bfc89</span>","value":":2a2bfc89"},{"type":"html","content":"<span class='clj-keyword'>:50d86760</span>","value":":50d86760"},{"type":"html","content":"<span class='clj-keyword'>:431b3174</span>","value":":431b3174"},{"type":"html","content":"<span class='clj-keyword'>:8a014cbb</span>","value":":8a014cbb"},{"type":"html","content":"<span class='clj-keyword'>:a8649089</span>","value":":a8649089"},{"type":"html","content":"<span class='clj-keyword'>:a4459495</span>","value":":a4459495"},{"type":"html","content":"<span class='clj-keyword'>:ac77b71a</span>","value":":ac77b71a"},{"type":"html","content":"<span class='clj-keyword'>:6769bdb2</span>","value":":6769bdb2"},{"type":"html","content":"<span class='clj-keyword'>:22c2dcf4</span>","value":":22c2dcf4"},{"type":"html","content":"<span class='clj-keyword'>:692824c7</span>","value":":692824c7"},{"type":"html","content":"<span class='clj-keyword'>:ce6e6bbd</span>","value":":ce6e6bbd"},{"type":"html","content":"<span class='clj-keyword'>:5035aded</span>","value":":5035aded"},{"type":"html","content":"<span class='clj-keyword'>:b2b14786</span>","value":":b2b14786"},{"type":"html","content":"<span class='clj-keyword'>:07f39509</span>","value":":07f39509"},{"type":"html","content":"<span class='clj-keyword'>:3aea6370</span>","value":":3aea6370"},{"type":"html","content":"<span class='clj-keyword'>:45919d0d</span>","value":":45919d0d"},{"type":"html","content":"<span class='clj-keyword'>:9f02f646</span>","value":":9f02f646"},{"type":"html","content":"<span class='clj-keyword'>:3e805b2a</span>","value":":3e805b2a"},{"type":"html","content":"<span class='clj-keyword'>:834f84b2</span>","value":":834f84b2"},{"type":"html","content":"<span class='clj-keyword'>:07875ea4</span>","value":":07875ea4"},{"type":"html","content":"<span class='clj-keyword'>:905d2fbc</span>","value":":905d2fbc"},{"type":"html","content":"<span class='clj-keyword'>:fc7f99ee</span>","value":":fc7f99ee"},{"type":"html","content":"<span class='clj-keyword'>:37018b2d</span>","value":":37018b2d"},{"type":"html","content":"<span class='clj-keyword'>:f6a5ae09</span>","value":":f6a5ae09"},{"type":"html","content":"<span class='clj-keyword'>:554d9f5f</span>","value":":554d9f5f"},{"type":"html","content":"<span class='clj-keyword'>:f8c8df20</span>","value":":f8c8df20"},{"type":"html","content":"<span class='clj-keyword'>:cede6db1</span>","value":":cede6db1"},{"type":"html","content":"<span class='clj-keyword'>:1cb5985e</span>","value":":1cb5985e"},{"type":"html","content":"<span class='clj-keyword'>:d012a1cb</span>","value":":d012a1cb"},{"type":"html","content":"<span class='clj-keyword'>:08dd2eb8</span>","value":":08dd2eb8"},{"type":"html","content":"<span class='clj-keyword'>:9a5911ad</span>","value":":9a5911ad"},{"type":"html","content":"<span class='clj-keyword'>:5a96d22e</span>","value":":5a96d22e"},{"type":"html","content":"<span class='clj-keyword'>:8f6c30bb</span>","value":":8f6c30bb"},{"type":"html","content":"<span class='clj-keyword'>:061893d4</span>","value":":061893d4"},{"type":"html","content":"<span class='clj-keyword'>:04a1662e</span>","value":":04a1662e"},{"type":"html","content":"<span class='clj-keyword'>:c9758700</span>","value":":c9758700"},{"type":"html","content":"<span class='clj-keyword'>:9ae68bb9</span>","value":":9ae68bb9"},{"type":"html","content":"<span class='clj-keyword'>:2801fd97</span>","value":":2801fd97"},{"type":"html","content":"<span class='clj-keyword'>:931519c4</span>","value":":931519c4"},{"type":"html","content":"<span class='clj-keyword'>:1ce4451d</span>","value":":1ce4451d"},{"type":"html","content":"<span class='clj-keyword'>:0086332e</span>","value":":0086332e"},{"type":"html","content":"<span class='clj-keyword'>:82310cab</span>","value":":82310cab"},{"type":"html","content":"<span class='clj-keyword'>:f7c9ee04</span>","value":":f7c9ee04"},{"type":"html","content":"<span class='clj-keyword'>:3738b922</span>","value":":3738b922"},{"type":"html","content":"<span class='clj-keyword'>:8acb1161</span>","value":":8acb1161"},{"type":"html","content":"<span class='clj-keyword'>:ed326aa2</span>","value":":ed326aa2"},{"type":"html","content":"<span class='clj-keyword'>:09b19f16</span>","value":":09b19f16"},{"type":"html","content":"<span class='clj-keyword'>:da162469</span>","value":":da162469"},{"type":"html","content":"<span class='clj-keyword'>:40fb49ca</span>","value":":40fb49ca"},{"type":"html","content":"<span class='clj-keyword'>:d784a354</span>","value":":d784a354"},{"type":"html","content":"<span class='clj-keyword'>:c21a1e56</span>","value":":c21a1e56"},{"type":"html","content":"<span class='clj-keyword'>:8eb51743</span>","value":":8eb51743"},{"type":"html","content":"<span class='clj-keyword'>:c45c8256</span>","value":":c45c8256"},{"type":"html","content":"<span class='clj-keyword'>:07533d06</span>","value":":07533d06"},{"type":"html","content":"<span class='clj-keyword'>:2e93a860</span>","value":":2e93a860"},{"type":"html","content":"<span class='clj-keyword'>:9cdc12cc</span>","value":":9cdc12cc"},{"type":"html","content":"<span class='clj-keyword'>:665810f3</span>","value":":665810f3"},{"type":"html","content":"<span class='clj-keyword'>:ed9450c2</span>","value":":ed9450c2"},{"type":"html","content":"<span class='clj-keyword'>:06f76b24</span>","value":":06f76b24"},{"type":"html","content":"<span class='clj-keyword'>:12c3d700</span>","value":":12c3d700"},{"type":"html","content":"<span class='clj-keyword'>:0345a137</span>","value":":0345a137"},{"type":"html","content":"<span class='clj-keyword'>:4e873691</span>","value":":4e873691"},{"type":"html","content":"<span class='clj-keyword'>:27f3fa06</span>","value":":27f3fa06"},{"type":"html","content":"<span class='clj-keyword'>:fac78767</span>","value":":fac78767"},{"type":"html","content":"<span class='clj-keyword'>:2d227840</span>","value":":2d227840"},{"type":"html","content":"<span class='clj-keyword'>:42606fe6</span>","value":":42606fe6"},{"type":"html","content":"<span class='clj-keyword'>:03108db9</span>","value":":03108db9"},{"type":"html","content":"<span class='clj-keyword'>:0b697be1</span>","value":":0b697be1"},{"type":"html","content":"<span class='clj-keyword'>:58db4f0c</span>","value":":58db4f0c"},{"type":"html","content":"<span class='clj-keyword'>:02b9b0fc</span>","value":":02b9b0fc"}],"value":"(:ddd2926e :96809ac8 :b3cf8def :e8275b8f :9644d0bf :05241af0 :b264c159 :e6f67278 :37e8da74 :f1ac7184 :5d877109 :6f407810 :58811cdf :72aab6df :6dec2796 :a4f47b2e :9b1fe278 :c26c53cf :b7a69808 :fa60af6b :8a308c73 :1b6530bc :a2d12b33 :c6563308 :e99d0c2e :69890c7f :c62f7206 :2a2bfc89 :50d86760 :431b3174 :8a014cbb :a8649089 :a4459495 :ac77b71a :6769bdb2 :22c2dcf4 :692824c7 :ce6e6bbd :5035aded :b2b14786 :07f39509 :3aea6370 :45919d0d :9f02f646 :3e805b2a :834f84b2 :07875ea4 :905d2fbc :fc7f99ee :37018b2d :f6a5ae09 :554d9f5f :f8c8df20 :cede6db1 :1cb5985e :d012a1cb :08dd2eb8 :9a5911ad :5a96d22e :8f6c30bb :061893d4 :04a1662e :c9758700 :9ae68bb9 :2801fd97 :931519c4 :1ce4451d :0086332e :82310cab :f7c9ee04 :3738b922 :8acb1161 :ed326aa2 :09b19f16 :da162469 :40fb49ca :d784a354 :c21a1e56 :8eb51743 :c45c8256 :07533d06 :2e93a860 :9cdc12cc :665810f3 :ed9450c2 :06f76b24 :12c3d700 :0345a137 :4e873691 :27f3fa06 :fac78767 :2d227840 :42606fe6 :03108db9 :0b697be1 :58db4f0c :02b9b0fc)"}],"value":"[:device_ip (:ddd2926e :96809ac8 :b3cf8def :e8275b8f :9644d0bf :05241af0 :b264c159 :e6f67278 :37e8da74 :f1ac7184 :5d877109 :6f407810 :58811cdf :72aab6df :6dec2796 :a4f47b2e :9b1fe278 :c26c53cf :b7a69808 :fa60af6b :8a308c73 :1b6530bc :a2d12b33 :c6563308 :e99d0c2e :69890c7f :c62f7206 :2a2bfc89 :50d86760 :431b3174 :8a014cbb :a8649089 :a4459495 :ac77b71a :6769bdb2 :22c2dcf4 :692824c7 :ce6e6bbd :5035aded :b2b14786 :07f39509 :3aea6370 :45919d0d :9f02f646 :3e805b2a :834f84b2 :07875ea4 :905d2fbc :fc7f99ee :37018b2d :f6a5ae09 :554d9f5f :f8c8df20 :cede6db1 :1cb5985e :d012a1cb :08dd2eb8 :9a5911ad :5a96d22e :8f6c30bb :061893d4 :04a1662e :c9758700 :9ae68bb9 :2801fd97 :931519c4 :1ce4451d :0086332e :82310cab :f7c9ee04 :3738b922 :8acb1161 :ed326aa2 :09b19f16 :da162469 :40fb49ca :d784a354 :c21a1e56 :8eb51743 :c45c8256 :07533d06 :2e93a860 :9cdc12cc :665810f3 :ed9450c2 :06f76b24 :12c3d700 :0345a137 :4e873691 :27f3fa06 :fac78767 :2d227840 :42606fe6 :03108db9 :0b697be1 :58db4f0c :02b9b0fc)]"}],"value":"{:device_ip (:ddd2926e :96809ac8 :b3cf8def :e8275b8f :9644d0bf :05241af0 :b264c159 :e6f67278 :37e8da74 :f1ac7184 :5d877109 :6f407810 :58811cdf :72aab6df :6dec2796 :a4f47b2e :9b1fe278 :c26c53cf :b7a69808 :fa60af6b :8a308c73 :1b6530bc :a2d12b33 :c6563308 :e99d0c2e :69890c7f :c62f7206 :2a2bfc89 :50d86760 :431b3174 :8a014cbb :a8649089 :a4459495 :ac77b71a :6769bdb2 :22c2dcf4 :692824c7 :ce6e6bbd :5035aded :b2b14786 :07f39509 :3aea6370 :45919d0d :9f02f646 :3e805b2a :834f84b2 :07875ea4 :905d2fbc :fc7f99ee :37018b2d :f6a5ae09 :554d9f5f :f8c8df20 :cede6db1 :1cb5985e :d012a1cb :08dd2eb8 :9a5911ad :5a96d22e :8f6c30bb :061893d4 :04a1662e :c9758700 :9ae68bb9 :2801fd97 :931519c4 :1ce4451d :0086332e :82310cab :f7c9ee04 :3738b922 :8acb1161 :ed326aa2 :09b19f16 :da162469 :40fb49ca :d784a354 :c21a1e56 :8eb51743 :c45c8256 :07533d06 :2e93a860 :9cdc12cc :665810f3 :ed9450c2 :06f76b24 :12c3d700 :0345a137 :4e873691 :27f3fa06 :fac78767 :2d227840 :42606fe6 :03108db9 :0b697be1 :58db4f0c :02b9b0fc)}"},{"type":"list-like","open":"<span class='clj-map'>{</span>","close":"<span class='clj-map'>}</span>","separator":", ","items":[{"type":"list-like","open":"","close":"","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:device_model</span>","value":":device_model"},{"type":"list-like","open":"<span class='clj-lazy-seq'>(</span>","close":"<span class='clj-lazy-seq'>)</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-keyword'>:44956a24</span>","value":":44956a24"},{"type":"html","content":"<span class='clj-keyword'>:711ee120</span>","value":":711ee120"},{"type":"html","content":"<span class='clj-keyword'>:8a4875bd</span>","value":":8a4875bd"},{"type":"html","content":"<span class='clj-keyword'>:6332421a</span>","value":":6332421a"},{"type":"html","content":"<span class='clj-keyword'>:779d90c2</span>","value":":779d90c2"},{"type":"html","content":"<span class='clj-keyword'>:be6db1d7</span>","value":":be6db1d7"},{"type":"html","content":"<span class='clj-keyword'>:be74e6fe</span>","value":":be74e6fe"},{"type":"html","content":"<span class='clj-keyword'>:5db079b5</span>","value":":5db079b5"},{"type":"html","content":"<span class='clj-keyword'>:373ecbe6</span>","value":":373ecbe6"},{"type":"html","content":"<span class='clj-keyword'>:8f5c9827</span>","value":":8f5c9827"},{"type":"html","content":"<span class='clj-keyword'>:1f0bc64f</span>","value":":1f0bc64f"},{"type":"html","content":"<span class='clj-keyword'>:8326c04b</span>","value":":8326c04b"},{"type":"html","content":"<span class='clj-keyword'>:04258293</span>","value":":04258293"},{"type":"html","content":"<span class='clj-keyword'>:aad45b01</span>","value":":aad45b01"},{"type":"html","content":"<span class='clj-keyword'>:128f4ba1</span>","value":":128f4ba1"},{"type":"html","content":"<span class='clj-keyword'>:be87996b</span>","value":":be87996b"},{"type":"html","content":"<span class='clj-keyword'>:158e4944</span>","value":":158e4944"},{"type":"html","content":"<span class='clj-keyword'>:b4b19c97</span>","value":":b4b19c97"},{"type":"html","content":"<span class='clj-keyword'>:3223bcfe</span>","value":":3223bcfe"},{"type":"html","content":"<span class='clj-keyword'>:1aa0e912</span>","value":":1aa0e912"},{"type":"html","content":"<span class='clj-keyword'>:607e78f2</span>","value":":607e78f2"},{"type":"html","content":"<span class='clj-keyword'>:7fdd04d2</span>","value":":7fdd04d2"},{"type":"html","content":"<span class='clj-keyword'>:d25693ce</span>","value":":d25693ce"},{"type":"html","content":"<span class='clj-keyword'>:9fef9da8</span>","value":":9fef9da8"},{"type":"html","content":"<span class='clj-keyword'>:69f9dd0e</span>","value":":69f9dd0e"},{"type":"html","content":"<span class='clj-keyword'>:ecf10acf</span>","value":":ecf10acf"},{"type":"html","content":"<span class='clj-keyword'>:d787e91b</span>","value":":d787e91b"},{"type":"html","content":"<span class='clj-keyword'>:f39b265e</span>","value":":f39b265e"},{"type":"html","content":"<span class='clj-keyword'>:81b42528</span>","value":":81b42528"},{"type":"html","content":"<span class='clj-keyword'>:e9b8d8d7</span>","value":":e9b8d8d7"},{"type":"html","content":"<span class='clj-keyword'>:517bef98</span>","value":":517bef98"},{"type":"html","content":"<span class='clj-keyword'>:d6e0e6ff</span>","value":":d6e0e6ff"},{"type":"html","content":"<span class='clj-keyword'>:293291c1</span>","value":":293291c1"},{"type":"html","content":"<span class='clj-keyword'>:2cd8ff6d</span>","value":":2cd8ff6d"},{"type":"html","content":"<span class='clj-keyword'>:3db9fde9</span>","value":":3db9fde9"},{"type":"html","content":"<span class='clj-keyword'>:36d749e5</span>","value":":36d749e5"},{"type":"html","content":"<span class='clj-keyword'>:49ea3580</span>","value":":49ea3580"},{"type":"html","content":"<span class='clj-keyword'>:6360f9ec</span>","value":":6360f9ec"},{"type":"html","content":"<span class='clj-keyword'>:1ccc7835</span>","value":":1ccc7835"},{"type":"html","content":"<span class='clj-keyword'>:e8c7729d</span>","value":":e8c7729d"},{"type":"html","content":"<span class='clj-keyword'>:cf19f7f7</span>","value":":cf19f7f7"},{"type":"html","content":"<span class='clj-keyword'>:76dc4769</span>","value":":76dc4769"},{"type":"html","content":"<span class='clj-keyword'>:aaffed8f</span>","value":":aaffed8f"},{"type":"html","content":"<span class='clj-keyword'>:1b13b020</span>","value":":1b13b020"},{"type":"html","content":"<span class='clj-keyword'>:70359270</span>","value":":70359270"},{"type":"html","content":"<span class='clj-keyword'>:24f6b932</span>","value":":24f6b932"},{"type":"html","content":"<span class='clj-keyword'>:88fe1d5d</span>","value":":88fe1d5d"},{"type":"html","content":"<span class='clj-keyword'>:36a30aeb</span>","value":":36a30aeb"},{"type":"html","content":"<span class='clj-keyword'>:a0f5f879</span>","value":":a0f5f879"},{"type":"html","content":"<span class='clj-keyword'>:ecb851b2</span>","value":":ecb851b2"},{"type":"html","content":"<span class='clj-keyword'>:cdf6ea96</span>","value":":cdf6ea96"},{"type":"html","content":"<span class='clj-keyword'>:9e3836ff</span>","value":":9e3836ff"},{"type":"html","content":"<span class='clj-keyword'>:744ae245</span>","value":":744ae245"},{"type":"html","content":"<span class='clj-keyword'>:68b900d9</span>","value":":68b900d9"},{"type":"html","content":"<span class='clj-keyword'>:521f95fe</span>","value":":521f95fe"},{"type":"html","content":"<span class='clj-keyword'>:575d0d2a</span>","value":":575d0d2a"},{"type":"html","content":"<span class='clj-keyword'>:99e427c9</span>","value":":99e427c9"},{"type":"html","content":"<span class='clj-keyword'>:56f254f5</span>","value":":56f254f5"},{"type":"html","content":"<span class='clj-keyword'>:4ceb2e0b</span>","value":":4ceb2e0b"},{"type":"html","content":"<span class='clj-keyword'>:7eef184d</span>","value":":7eef184d"},{"type":"html","content":"<span class='clj-keyword'>:8b1aa260</span>","value":":8b1aa260"},{"type":"html","content":"<span class='clj-keyword'>:9f8d0424</span>","value":":9f8d0424"},{"type":"html","content":"<span class='clj-keyword'>:89416188</span>","value":":89416188"},{"type":"html","content":"<span class='clj-keyword'>:8debacdb</span>","value":":8debacdb"},{"type":"html","content":"<span class='clj-keyword'>:78d9bd10</span>","value":":78d9bd10"},{"type":"html","content":"<span class='clj-keyword'>:ef726eae</span>","value":":ef726eae"},{"type":"html","content":"<span class='clj-keyword'>:3bd9e8e7</span>","value":":3bd9e8e7"},{"type":"html","content":"<span class='clj-keyword'>:c6263d8a</span>","value":":c6263d8a"},{"type":"html","content":"<span class='clj-keyword'>:84ebbcd4</span>","value":":84ebbcd4"},{"type":"html","content":"<span class='clj-keyword'>:9b5ce758</span>","value":":9b5ce758"},{"type":"html","content":"<span class='clj-keyword'>:cb0fb677</span>","value":":cb0fb677"}],"value":"(:44956a24 :711ee120 :8a4875bd :6332421a :779d90c2 :be6db1d7 :be74e6fe :5db079b5 :373ecbe6 :8f5c9827 :1f0bc64f :8326c04b :04258293 :aad45b01 :128f4ba1 :be87996b :158e4944 :b4b19c97 :3223bcfe :1aa0e912 :607e78f2 :7fdd04d2 :d25693ce :9fef9da8 :69f9dd0e :ecf10acf :d787e91b :f39b265e :81b42528 :e9b8d8d7 :517bef98 :d6e0e6ff :293291c1 :2cd8ff6d :3db9fde9 :36d749e5 :49ea3580 :6360f9ec :1ccc7835 :e8c7729d :cf19f7f7 :76dc4769 :aaffed8f :1b13b020 :70359270 :24f6b932 :88fe1d5d :36a30aeb :a0f5f879 :ecb851b2 :cdf6ea96 :9e3836ff :744ae245 :68b900d9 :521f95fe :575d0d2a :99e427c9 :56f254f5 :4ceb2e0b :7eef184d :8b1aa260 :9f8d0424 :89416188 :8debacdb :78d9bd10 :ef726eae :3bd9e8e7 :c6263d8a :84ebbcd4 :9b5ce758 :cb0fb677)"}],"value":"[:device_model (:44956a24 :711ee120 :8a4875bd :6332421a :779d90c2 :be6db1d7 :be74e6fe :5db079b5 :373ecbe6 :8f5c9827 :1f0bc64f :8326c04b :04258293 :aad45b01 :128f4ba1 :be87996b :158e4944 :b4b19c97 :3223bcfe :1aa0e912 :607e78f2 :7fdd04d2 :d25693ce :9fef9da8 :69f9dd0e :ecf10acf :d787e91b :f39b265e :81b42528 :e9b8d8d7 :517bef98 :d6e0e6ff :293291c1 :2cd8ff6d :3db9fde9 :36d749e5 :49ea3580 :6360f9ec :1ccc7835 :e8c7729d :cf19f7f7 :76dc4769 :aaffed8f :1b13b020 :70359270 :24f6b932 :88fe1d5d :36a30aeb :a0f5f879 :ecb851b2 :cdf6ea96 :9e3836ff :744ae245 :68b900d9 :521f95fe :575d0d2a :99e427c9 :56f254f5 :4ceb2e0b :7eef184d :8b1aa260 :9f8d0424 :89416188 :8debacdb :78d9bd10 :ef726eae :3bd9e8e7 :c6263d8a :84ebbcd4 :9b5ce758 :cb0fb677)]"}],"value":"{:device_model (:44956a24 :711ee120 :8a4875bd :6332421a :779d90c2 :be6db1d7 :be74e6fe :5db079b5 :373ecbe6 :8f5c9827 :1f0bc64f :8326c04b :04258293 :aad45b01 :128f4ba1 :be87996b :158e4944 :b4b19c97 :3223bcfe :1aa0e912 :607e78f2 :7fdd04d2 :d25693ce :9fef9da8 :69f9dd0e :ecf10acf :d787e91b :f39b265e :81b42528 :e9b8d8d7 :517bef98 :d6e0e6ff :293291c1 :2cd8ff6d :3db9fde9 :36d749e5 :49ea3580 :6360f9ec :1ccc7835 :e8c7729d :cf19f7f7 :76dc4769 :aaffed8f :1b13b020 :70359270 :24f6b932 :88fe1d5d :36a30aeb :a0f5f879 :ecb851b2 :cdf6ea96 :9e3836ff :744ae245 :68b900d9 :521f95fe :575d0d2a :99e427c9 :56f254f5 :4ceb2e0b :7eef184d :8b1aa260 :9f8d0424 :89416188 :8debacdb :78d9bd10 :ef726eae :3bd9e8e7 :c6263d8a :84ebbcd4 :9b5ce758 :cb0fb677)}"},{"type":"html","content":"<span class='clj-keyword'>:device_type</span>","value":":device_type"},{"type":"html","content":"<span class='clj-keyword'>:device_conn_type</span>","value":":device_conn_type"},{"type":"html","content":"<span class='clj-keyword'>:C14</span>","value":":C14"},{"type":"html","content":"<span class='clj-keyword'>:C15</span>","value":":C15"},{"type":"html","content":"<span class='clj-keyword'>:C16</span>","value":":C16"},{"type":"html","content":"<span class='clj-keyword'>:C17</span>","value":":C17"},{"type":"html","content":"<span class='clj-keyword'>:C18</span>","value":":C18"},{"type":"html","content":"<span class='clj-keyword'>:C19</span>","value":":C19"},{"type":"html","content":"<span class='clj-keyword'>:C20</span>","value":":C20"},{"type":"html","content":"<span class='clj-keyword'>:C21</span>","value":":C21"}],"value":"[:id :click :hour :C1 :banner_pos {:site_id (:1fbe01fe :fe8cc448 :d6137915 :8fda644b :e151e245 :84c7ba46 :9e8cf15d :85f751fd :d9750ee7 :0c2fe9d6 :543a539e :f84e52b6 :030440fe :6ec06dbd :0eb72673 :5ee41ff2 :4dd0a958 :6256f5b4 :0aab7161 :e023ba3e :5b08c53b :f5476ff8)} {:site_domain (:f3845767 :9166c161 :bb1ef334 :25d4cfcd :7e091613 :c4e18dd6 :0d3cb7be :98572c79 :27e3c518 :c7ca3108 :d7e2f29b :08ba7db9 :d262cf1e :d2f72222 :17d996e6 :79cf0c8d :28f93029 :660aeadc :75f9ddc3 :7687a86e :00e1b9c0)} {:site_category (:28905ebd :0569f928 :f028772b :50e219e0 :3e814130 :76b2941d :f66779e6)} {:app_id (:ecad2386 :98fed791 :66a5f0f3 :ffc6ffd0 :54c5d545 :685d1c4c :d2bb6502 :0acbeaa3 :e2a1ca37 :a607e6a7 :396df801 :a079ef6b :1779deee :febd1138 :39947756 :e2fcccd2 :a37bf1e4 :9c13b419 :c51f82bc)} {:app_domain (:7801e8d9 :d9b5648e :2347f47a :45a51db4 :82e27996 :5c5a694b)} {:app_category (:07d7df22 :0f2161f8 :cef3e649 :8ded1f7a :f95efa07 :75d80bbe)} {:device_id (:a99f214a :c357dbff :fb23c543 :9af87478 :6a943594 :4b2309e9 :432cd280 :890abcbb :767a174e :a2cbb1e0 :1ab3feec)} {:device_ip (:ddd2926e :96809ac8 :b3cf8def :e8275b8f :9644d0bf :05241af0 :b264c159 :e6f67278 :37e8da74 :f1ac7184 :5d877109 :6f407810 :58811cdf :72aab6df :6dec2796 :a4f47b2e :9b1fe278 :c26c53cf :b7a69808 :fa60af6b :8a308c73 :1b6530bc :a2d12b33 :c6563308 :e99d0c2e :69890c7f :c62f7206 :2a2bfc89 :50d86760 :431b3174 :8a014cbb :a8649089 :a4459495 :ac77b71a :6769bdb2 :22c2dcf4 :692824c7 :ce6e6bbd :5035aded :b2b14786 :07f39509 :3aea6370 :45919d0d :9f02f646 :3e805b2a :834f84b2 :07875ea4 :905d2fbc :fc7f99ee :37018b2d :f6a5ae09 :554d9f5f :f8c8df20 :cede6db1 :1cb5985e :d012a1cb :08dd2eb8 :9a5911ad :5a96d22e :8f6c30bb :061893d4 :04a1662e :c9758700 :9ae68bb9 :2801fd97 :931519c4 :1ce4451d :0086332e :82310cab :f7c9ee04 :3738b922 :8acb1161 :ed326aa2 :09b19f16 :da162469 :40fb49ca :d784a354 :c21a1e56 :8eb51743 :c45c8256 :07533d06 :2e93a860 :9cdc12cc :665810f3 :ed9450c2 :06f76b24 :12c3d700 :0345a137 :4e873691 :27f3fa06 :fac78767 :2d227840 :42606fe6 :03108db9 :0b697be1 :58db4f0c :02b9b0fc)} {:device_model (:44956a24 :711ee120 :8a4875bd :6332421a :779d90c2 :be6db1d7 :be74e6fe :5db079b5 :373ecbe6 :8f5c9827 :1f0bc64f :8326c04b :04258293 :aad45b01 :128f4ba1 :be87996b :158e4944 :b4b19c97 :3223bcfe :1aa0e912 :607e78f2 :7fdd04d2 :d25693ce :9fef9da8 :69f9dd0e :ecf10acf :d787e91b :f39b265e :81b42528 :e9b8d8d7 :517bef98 :d6e0e6ff :293291c1 :2cd8ff6d :3db9fde9 :36d749e5 :49ea3580 :6360f9ec :1ccc7835 :e8c7729d :cf19f7f7 :76dc4769 :aaffed8f :1b13b020 :70359270 :24f6b932 :88fe1d5d :36a30aeb :a0f5f879 :ecb851b2 :cdf6ea96 :9e3836ff :744ae245 :68b900d9 :521f95fe :575d0d2a :99e427c9 :56f254f5 :4ceb2e0b :7eef184d :8b1aa260 :9f8d0424 :89416188 :8debacdb :78d9bd10 :ef726eae :3bd9e8e7 :c6263d8a :84ebbcd4 :9b5ce758 :cb0fb677)} :device_type :device_conn_type :C14 :C15 :C16 :C17 :C18 :C19 :C20 :C21]"}
+;; <=
+
+;; **
+;;; Find the column indexes that have categorical values
+;; **
+
+;; @@
+(def catcols
+  (disj 
+    (->> (map vector (cd/dataset-format ds) (iterate inc 0))
+       (filter (fn[[x y]]  (instance? (class {}) x)))
+       (map second)
+       set) 11 12))
+            
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;avazu2/catcols</span>","value":"#'avazu2/catcols"}
+;; <=
+
+;; @@
+(defn per-rec
+  [record]
+  (zipmap catcols (map (comp hash-set keyword) (mapv record catcols))))
+
+(defn combfn
+  ([] {})
+  ([x y] (merge-with into x y)))
+
+(defn find-cat-val-set
+ [stream]
+  (->> stream 
+       (r/map per-rec)
+       (r/fold combfn combfn)))
+
+(defn cat-map
+  [fpathin]
+  (with-open [rdr (io/reader fpathin)]
+    (->> rdr
+         csv/read-csv
+         rest 
+         (r/map per-rec)
+         (r/fold combfn combfn))))
+
+(def s1 (cat-map fpath100k))
+;(->> s1 vals (map count) (map vector catcols))
+(->> s1
+     (map (fn[[k v]] [k (count v)])))
+     
+;; @@
+;; =>
+;;; {"type":"list-like","open":"<span class='clj-lazy-seq'>(</span>","close":"<span class='clj-lazy-seq'>)</span>","separator":" ","items":[{"type":"list-like","open":"<span class='clj-vector'>[</span>","close":"<span class='clj-vector'>]</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-long'>7</span>","value":"7"},{"type":"html","content":"<span class='clj-unkown'>16</span>","value":"16"}],"value":"[7 16]"},{"type":"list-like","open":"<span class='clj-vector'>[</span>","close":"<span class='clj-vector'>]</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-long'>13</span>","value":"13"},{"type":"html","content":"<span class='clj-unkown'>2473</span>","value":"2473"}],"value":"[13 2473]"},{"type":"list-like","open":"<span class='clj-vector'>[</span>","close":"<span class='clj-vector'>]</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-long'>6</span>","value":"6"},{"type":"html","content":"<span class='clj-unkown'>780</span>","value":"780"}],"value":"[6 780]"},{"type":"list-like","open":"<span class='clj-vector'>[</span>","close":"<span class='clj-vector'>]</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-long'>9</span>","value":"9"},{"type":"html","content":"<span class='clj-unkown'>55</span>","value":"55"}],"value":"[9 55]"},{"type":"list-like","open":"<span class='clj-vector'>[</span>","close":"<span class='clj-vector'>]</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-long'>5</span>","value":"5"},{"type":"html","content":"<span class='clj-unkown'>893</span>","value":"893"}],"value":"[5 893]"},{"type":"list-like","open":"<span class='clj-vector'>[</span>","close":"<span class='clj-vector'>]</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-long'>10</span>","value":"10"},{"type":"html","content":"<span class='clj-unkown'>19</span>","value":"19"}],"value":"[10 19]"},{"type":"list-like","open":"<span class='clj-vector'>[</span>","close":"<span class='clj-vector'>]</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-long'>8</span>","value":"8"},{"type":"html","content":"<span class='clj-unkown'>704</span>","value":"704"}],"value":"[8 704]"}],"value":"([7 16] [13 2473] [6 780] [9 55] [5 893] [10 19] [8 704])"}
+;; <=
+
+;; **
+;;; Creates a set of the categorical column values. There are 8 categorical columns here, 5-13 . Lets find the number of uniques in 9 columns, from 5 to 13. This will be used to define the dataset, since each of these are categorical columns, and the values need to be predefined.
+;; **
+
+;; @@
+catcols	
+(keys s1)
+(def kcols (mapv #(if (catcols %2) {%1 (seq (s1 %2))} %1) (map keyword (rest cols)) (iterate inc 0)))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;avazu2/kcols</span>","value":"#'avazu2/kcols"}
+;; <=
+
+;; @@
+(defn gc [catcols cid]
+	(mapv keyword (catcols cid)))
+
+(defn gc1 [cid] (gc catcols cid))
+
+(def kcols 
+  [;{:id nil} removed id col
+   {:click [:0 :1]} :hour :C1 :banner_pos {:site_id (gc1 0)} {:site_domain (gc1 1)} {:site_category (gc1 2)} {:app_id (gc1 3)} {:app_domain (gc1 4)} {:app_category (gc1 5)} 
+   ; {:device_id (gc1 6)} {:device_ip (gc1 7)} 
+   {:device_model (gc1 6)} :device_type :device_conn_type :C14 :C15 :C16 :C17 :C18 :C19 :C20 :C21])
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist2/kcols</span>","value":"#'energized-mist2/kcols"}
+;; <=
+
+;; **
+;;; For 1 million instance, the unique counts for the category columns are [2075 2030 21 2309 156 23 83430 313001 4581]. Loading the large number of unique counts into the header field of the dataset throws outofmemory errors. Therefore we'll drop the columns with a large number of uniques (7,8)
+;; **
+
+;; @@
+(defn parseline2 
+       [inp]
+  (let [k (vec inp)]
+        (concat ;[(k 0)] removed id column
+          [(keyword (k 1))]
+		(for [i (subvec k 2 5)] (Integer/parseInt i))
+		(for [i (subvec k 5 11)] (keyword i))
+          ;removed the last 7,8 integer columns
+          [(keyword (k 13))] ;add the last categorical column
+		(for [i (subvec k 14)] (Integer/parseInt i)) 
+	)))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist2/parseline2</span>","value":"#'energized-mist2/parseline2"}
+;; <=
+
+;; @@
+(def ids 
+  (-> 
+  	(cd/make-dataset "i2" kcols 0)
+    (cd/dataset-set-class 0)
+    ))
+  ;(catch Exception e
+  ;  (println (.getMessage e))))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;avazu2/ids</span>","value":"#'avazu2/ids"}
+;; <=
+
+;; **
+;;; Lets load the avazu data and create an Instance object for each line. We need to previously create the dataset, with 0 instances.
+;; **
+
+;; @@
+(defn add-inst [ds instlist]
+  (reduce #(cd/dataset-add %1 %2) ds instlist)) 
+
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;avazu2/add-inst</span>","value":"#'avazu2/add-inst"}
+;; <=
+
+;; @@
+(def sds
+  (add-inst ids
+(->> (iota/subvec (iota/vec fpath100k) 1 10000)
+    (mapv (fn[x] (clojure.string/split x #",")))
+    (map parseline2)
+    (map #(cd/make-instance ids %))    
+     ;(take 2)
+     ;(map count)
+    )
+))
+;; @@
+
+;; @@
+(class sds)
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-class'>weka.core.Instances</span>","value":"weka.core.Instances"}
+;; <=
+
+;; **
+;;; 
+;; **
+
+;; @@
+(mapv count catcols)
+;; @@
+;; =>
+;;; {"type":"list-like","open":"<span class='clj-vector'>[</span>","close":"<span class='clj-vector'>]</span>","separator":" ","items":[{"type":"html","content":"<span class='clj-unkown'>4737</span>","value":"4737"},{"type":"html","content":"<span class='clj-unkown'>7745</span>","value":"7745"},{"type":"html","content":"<span class='clj-unkown'>26</span>","value":"26"},{"type":"html","content":"<span class='clj-unkown'>8552</span>","value":"8552"},{"type":"html","content":"<span class='clj-unkown'>559</span>","value":"559"},{"type":"html","content":"<span class='clj-unkown'>36</span>","value":"36"},{"type":"html","content":"<span class='clj-unkown'>2686408</span>","value":"2686408"},{"type":"html","content":"<span class='clj-unkown'>6729486</span>","value":"6729486"}],"value":"[4737 7745 26 8552 559 36 2686408 6729486]"}
+;; <=
+
+;; @@
+(try 
+  (def classifier (cls/make-classifier :meta :raced-incremental-logit-boost {:size-of-validation-set 2000 :name-of-base-classifier "weka.classifiers.trees.DecisionStump" } ))                                                                             
+  (catch Exception e
+    (clojure.stacktrace/print-stack-trace e)))
+
+;(.getValidationChunkSize classifier)
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist2/classifier</span>","value":"#'energized-mist2/classifier"}
+;; <=
+
+;; @@
+(try
+(cls/classifier-train classifier sds)
+  (catch Exception e
+    (clojure.stacktrace/print-stack-trace e)))
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-unkown'>#&lt;RacedIncrementalLogitBoost RacedIncrementalLogitBoost: Best committee on validation data\nBase classifiers: \n\nModel 1\n\tClass 1 (click=0)\n\nDecision Stump\n\nClassifications\n\nC21 &lt;= 39.5 : 0.5217391304347826\nC21 &gt; 39.5 : 1.411764705882353\nC21 is missing : 1.248\n\n\n\tClass 2 (click=1)\n\nDecision Stump\n\nClassifications\n\nC21 &lt;= 39.5 : -0.5217391304347826\nC21 &gt; 39.5 : -1.411764705882353\nC21 is missing : -1.248\n\n\nModel 2\n\tClass 1 (click=0)\n\nDecision Stump\n\nClassifications\n\nC21 &lt;= 14.0 : -2.6849554603609898\nC21 &gt; 14.0 : 0.35090306054495735\nC21 is missing : 0.318336560734559\n\n\n\tClass 2 (click=1)\n\nDecision Stump\n\nClassifications\n\nC21 &lt;= 14.0 : 2.68495546036099\nC21 &gt; 14.0 : -0.35090306054495735\nC21 is missing : -0.318336560734559\n\n\nModel 3\n\tClass 1 (click=0)\n\nDecision Stump\n\nClassifications\n\nC17 &lt;= 1761.0 : -0.6553520813503841\nC17 &gt; 1761.0 : 0.2497589799090006\nC17 is missing : -0.12278900046890907\n\n\n\tClass 2 (click=1)\n\nDecision Stump\n\nClassifications\n\nC17 &lt;= 1761.0 : 0.6553520813503781\nC17 &gt; 1761.0 : -0.24975897990899892\nC17 is missing : 0.12278900046890856\n\n\nModel 4\n\tClass 1 (click=0)\n\nDecision Stump\n\nClassifications\n\nsite_id = 93eaba74 : -4.0\nsite_id != 93eaba74 : 0.3055881421817336\nsite_id is missing : 0.25389050533933566\n\n\n\tClass 2 (click=1)\n\nDecision Stump\n\nClassifications\n\nsite_id = 93eaba74 : 4.0\nsite_id != 93eaba74 : -0.3055881421817337\nsite_id is missing : -0.25389050533933594\n\nNumber of models: 4\nChunk size per model: 500\n&gt;</span>","value":"#<RacedIncrementalLogitBoost RacedIncrementalLogitBoost: Best committee on validation data\nBase classifiers: \n\nModel 1\n\tClass 1 (click=0)\n\nDecision Stump\n\nClassifications\n\nC21 <= 39.5 : 0.5217391304347826\nC21 > 39.5 : 1.411764705882353\nC21 is missing : 1.248\n\n\n\tClass 2 (click=1)\n\nDecision Stump\n\nClassifications\n\nC21 <= 39.5 : -0.5217391304347826\nC21 > 39.5 : -1.411764705882353\nC21 is missing : -1.248\n\n\nModel 2\n\tClass 1 (click=0)\n\nDecision Stump\n\nClassifications\n\nC21 <= 14.0 : -2.6849554603609898\nC21 > 14.0 : 0.35090306054495735\nC21 is missing : 0.318336560734559\n\n\n\tClass 2 (click=1)\n\nDecision Stump\n\nClassifications\n\nC21 <= 14.0 : 2.68495546036099\nC21 > 14.0 : -0.35090306054495735\nC21 is missing : -0.318336560734559\n\n\nModel 3\n\tClass 1 (click=0)\n\nDecision Stump\n\nClassifications\n\nC17 <= 1761.0 : -0.6553520813503841\nC17 > 1761.0 : 0.2497589799090006\nC17 is missing : -0.12278900046890907\n\n\n\tClass 2 (click=1)\n\nDecision Stump\n\nClassifications\n\nC17 <= 1761.0 : 0.6553520813503781\nC17 > 1761.0 : -0.24975897990899892\nC17 is missing : 0.12278900046890856\n\n\nModel 4\n\tClass 1 (click=0)\n\nDecision Stump\n\nClassifications\n\nsite_id = 93eaba74 : -4.0\nsite_id != 93eaba74 : 0.3055881421817336\nsite_id is missing : 0.25389050533933566\n\n\n\tClass 2 (click=1)\n\nDecision Stump\n\nClassifications\n\nsite_id = 93eaba74 : 4.0\nsite_id != 93eaba74 : -0.3055881421817337\nsite_id is missing : -0.25389050533933594\n\nNumber of models: 4\nChunk size per model: 500\n>"}
+;; <=
+
+;; @@
+(def evaluation (cls/classifier-evaluate classifier :cross-validation sds 10))
+(println (:summary evaluation))
+;; @@
+;; ->
+;;; 
+;;; Correctly Classified Instances       82330               82.2494 %
+;;; Incorrectly Classified Instances     17768               17.7506 %
+;;; Kappa statistic                          0.0986
+;;; Mean absolute error                      0.2651
+;;; Root mean squared error                  0.3692
+;;; Relative absolute error                 91.8308 %
+;;; Root relative squared error             97.1854 %
+;;; Total Number of Instances           100098     
+;;; 
+;;; 
+;; <-
+;; =>
+;;; {"type":"html","content":"<span class='clj-nil'>nil</span>","value":"nil"}
+;; <=
+
+;; @@
+(defn logloss
+  [ytrue ypred]
+  (* -1 (apply + 
+         (mapv (fn[yt yp] (+ (* yt (Math/log yp))
+          (* (- 1 yt) (Math/log (- 1 yp))))) ytrue ypred)) (/ 1 (count ytrue))))
+  
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist2/logloss</span>","value":"#'energized-mist2/logloss"}
+;; <=
+
+;; @@
+(defn redfn
+  ;([] ids)
+  [dset inst]
+   ;(do (println "in redfn " (class inst) " cla " (class clsi))
+      (cd/dataset-add dset inst))
+   ;(cls/classifier-update clsi inst)))
+  
+
+(defn mergefn
+  ([] classifier)
+  ([clsi instances]
+   (do (println "in mergefn " (class instances) " cla " (class clsi))
+   (cls/classifier-update clsi instances)))
+  )
+
+(defn get-instances
+  [ids mmapfile start end]
+	(let [ret     
+	(->> (iota/subvec mmapfile start end)
+    (r/map (fn[x] (clojure.string/split x #",")))
+    (r/map parseline2)
+    (r/map #(cd/make-instance ids %)
+           ;#(try 
+           ;   (cd/make-instance ids %)
+           ;   (catch Exception e 
+           ;     (println " got exception " %)
+           ;      (clojure.stacktrace/print-stack-trace e)
+           ;     ))
+           )    
+	(r/reduce redfn ids)
+     ;(take 2)
+     ;(map class)
+    )]
+  ;(println "instance count " (map #(.numInstances %) [ids ret]) )	
+      ret
+  )
+  )
+
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist2/get-instances</span>","value":"#'energized-mist2/get-instances"}
+;; <=
+
+;; @@
+(defn measure 
+  [clsa trainset valset]
+  (let [[trainpred, valpred] (map #(for [i (cd/dataset-seq %)] 
+                                     (int (cls/classifier- clsa i))) [trainset valset])
+        [trainy,valy] (mapv #(for [i (cd/dataset-class-values %)] (Integer/parseInt i))
+                              [trainset valset])
+        eqcntfn (fn[x y] (float (/ 
+                           (count (filter (fn[[a b]] (= a b)) (mapv vector x y))) 
+                                  (count y)
+                           )))]
+    (println " train " (logloss trainpred trainy)  "val "(logloss valpred valy))
+    )
+  )
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-var'>#&#x27;energized-mist2/measure</span>","value":"#'energized-mist2/measure"}
+;; <=
+
+;; @@
+(* 19 50000)
+;; @@
+;; =>
+;;; {"type":"html","content":"<span class='clj-long'>950000</span>","value":"950000"}
+;; <=
+
+;; @@
+(try
+	(let [mmapfile (iota/vec fpathfull)
+          neds (fn []  (-> 
+  				(cd/make-dataset "i2" kcols 0)
+    			(cd/dataset-set-class 0)))
+          sampsize 50000
+          ;40428969
+      	iseq (partition 2 1 (range sampsize 40428969  sampsize))
+        c1 (cls/classifier-train classifier (get-instances (neds) mmapfile 1 sampsize))
+      	x (->> iseq
+           (r/map (fn[[start end]] (get-instances (neds) mmapfile start end)))
+      		(r/reduce (fn[cl instances]                    
+                (let [ret (cls/classifier-update cl instances)]
+                  (println " LLE " (.getBestCommitteeLLEstimate ret))
+      				ret)
+                  )
+              c1))]
+        nil)
+      (catch Exception e
+                    (clojure.stacktrace/print-stack-trace e))
+      )
+;; @@
+;; ->
+;;;  LLE  0.4308078303551715
+;;;  LLE  0.41956857531482505
+;;;  LLE  0.4145398798136109
+;;;  LLE  0.4145398798136109
+;;;  LLE  0.4145064536438683
+;;;  LLE  0.41438818361911295
+;;;  LLE  0.4137562330523384
+;;;  LLE  0.41330822600311246
+;;;  LLE  0.41151903985423954
+;;;  LLE  0.41062831805669847
+;;;  LLE  0.41062831805669847
+;;;  LLE  0.41062831805669847
+;;;  LLE  0.41062831805669847
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41864202799806516
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41060810427644245
+;;;  LLE  0.41055531321881505
+;;;  LLE  0.41055531321881505
+;;;  LLE  0.41055531321881505
+;;;  LLE  0.4161864573690721
+;;;  LLE  0.41472607709926274
+;;;  LLE  0.414501099729066
+;;;  LLE  0.414501099729066
+;;;  LLE  0.414501099729066
+;;;  LLE  0.41449986115570303
+;;;  LLE  0.41449986115570303
+;;;  LLE  0.41449986115570303
+;;;  LLE  0.4143007696216507
+;;;  LLE  0.4142948933933111
+;;;  LLE  0.41385360711759817
+;;;  LLE  0.41301243184438663
+;;;  LLE  0.412824247053564
+;;;  LLE  0.412824247053564
+;;;  LLE  0.412824247053564
+;;;  LLE  0.412824247053564
+;;;  LLE  0.412824247053564
+;;;  LLE  0.412824247053564
+;;;  LLE  0.4128238223104621
+;;;  LLE  0.4128238223104621
+;;;  LLE  0.4128238223104621
+;;;  LLE  0.41250761828895777
+;;;  LLE  0.41246925611611907
+;;;  LLE  0.41246925611611907
+;;;  LLE  0.41246925611611907
+;;;  LLE  0.41246925611611907
+;;;  LLE  0.41246925611611907
+;;;  LLE  0.41246925611611907
+;;;  LLE  0.4124356754528361
+;;;  LLE  0.4122206301413542
+;;;  LLE  0.4122206301413542
+;;;  LLE  0.4122206301413542
+;;;  LLE  0.41216465375216965
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121553600481302
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.4121551619255916
+;;;  LLE  0.41212221350469486
+;;;  LLE  0.4121217281461609
+;;;  LLE  0.4121217281461609
+;;;  LLE  0.4121217281461609
+;;;  LLE  0.4121217281461609
+;;;  LLE  0.4121217281461609
+;;;  LLE  0.4121217281461609
+;;;  LLE  0.41186910500334006
+;;;  LLE  0.41177340572909965
+;;;  LLE  0.41177340572909965
+;;;  LLE  0.41177340572909965
+;;;  LLE  0.41177340572909965
+;;;  LLE  0.41154339240969884
+;;;  LLE  0.4115314931595022
+;;;  LLE  0.4115314931595022
+;;;  LLE  0.4115314931595022
+;;;  LLE  0.4115314931595022
+;;;  LLE  0.411526852828691
+;;;  LLE  0.411526852828691
+;;;  LLE  0.411526852828691
+;;;  LLE  0.41152076551230243
+;;;  LLE  0.41152076551230243
+;;;  LLE  0.41152076551230243
+;;;  LLE  0.41152076551230243
+;;;  LLE  0.4115169899194921
+;;;  LLE  0.4115169899194921
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.41147369933509753
+;;;  LLE  0.411255608375387
+;;;  LLE  0.4106213507382004
+;;;  LLE  0.4106213507382004
+;;;  LLE  0.41061419601889215
+;;;  LLE  0.41061419601889215
+;;;  LLE  0.40850565911136716
+;;;  LLE  0.40850565911136716
+;;;  LLE  0.40850565911136716
+;;;  LLE  0.4084569852985705
+;;;  LLE  0.4084569852985705
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075375170000925
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.4075374769310872
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40744459557991003
+;;;  LLE  0.40728244607894515
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392832826247
+;;;  LLE  0.4072392816035322
+;;;  LLE  0.4072392816035322
+;;;  LLE  0.40720197442914513
+;;;  LLE  0.40720197442914513
+;;;  LLE  0.40695526177040664
+;;;  LLE  0.4069088128461013
+;;;  LLE  0.4069088128461013
+;;;  LLE  0.4068863362364493
+;;;  LLE  0.4068863362364493
+;;;  LLE  0.4068863362364493
+;;;  LLE  0.4068863362364493
+;;;  LLE  0.4068863362364493
+;;;  LLE  0.4068863362364493
+;;;  LLE  0.4068863362364493
+;;;  LLE  0.4068671429962901
+;;;  LLE  0.4068671429962901
+;;;  LLE  0.4068671429962901
+;;;  LLE  0.4068671429962901
+;;;  LLE  0.4068671429962901
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.40680601911259906
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068059494331915
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.3990314557345163
+;;;  LLE  0.3990314557345163
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.4068021190256511
+;;;  LLE  0.398619780016864
+;;;  LLE  0.398619780016864
+;;;  LLE  0.398596474570708
+;;;  LLE  0.398596474570708
+;;;  LLE  0.3985724184534062
+;;;  LLE  0.3985724184534062
+;;;  LLE  0.3985724184534062
+;;;  LLE  0.39857165587340243
+;;;  LLE  0.39857150741444536
+;;;  LLE  0.39857150741444536
+;;;  LLE  0.39857150741444536
+;;;  LLE  0.39857150741444536
+;;;  LLE  0.39857150741444536
+;;;  LLE  0.39857150741444536
+;;;  LLE  0.3985172866650947
+;;;  LLE  0.398496473437902
+;;;  LLE  0.3984913722981597
+;;;  LLE  0.3980345273732432
+;;;  LLE  0.3980345273732432
+;;;  LLE  0.3978749607007007
+;;;  LLE  0.3978749607007007
+;;;  LLE  0.397872635745978
+;;;  LLE  0.397872635745978
+;;;  LLE  0.397872635745978
+;;;  LLE  0.397872635745978
+;;;  LLE  0.397872635745978
+;;;  LLE  0.3978726161359543
+;;;  LLE  0.3978726161359543
+;;;  LLE  0.3978726161359543
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.3978721045871607
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781869622049615
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246715170765
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.4024085669635027
+;;;  LLE  0.4024085669635027
+;;;  LLE  0.4024085669635027
+;;;  LLE  0.4024085669635027
+;;;  LLE  0.4024085669635027
+;;;  LLE  0.4024085669635027
+;;;  LLE  0.4023783776871156
+;;;  LLE  0.4023783776871156
+;;;  LLE  0.4023783776871156
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39781246671373743
+;;;  LLE  0.39733627784215814
+;;;  LLE  0.39733627784215814
+;;;  LLE  0.39733627784215814
+;;;  LLE  0.39733627784215814
+;;;  LLE  0.39733627784215814
+;;;  LLE  0.39733627784215814
+;;;  LLE  0.39733627784215814
+;;;  LLE  0.39733627784215814
+;;;  LLE  0.39733627784215814
+;;;  LLE  0.39733627784215814
+;;;  LLE  0.39706254693207094
+;;;  LLE  0.39706254693207094
+;;;  LLE  0.39706254693207094
+;;;  LLE  0.39706254693207094
+;;;  LLE  0.39706254693207094
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.3970622993239388
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.39706228545910055
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.3970617890824139
+;;;  LLE  0.39706177862603165
+;;;  LLE  0.39706177862603165
+;;;  LLE  0.39706177862603165
+;;;  LLE  0.39706177862603165
+;;;  LLE  0.39706177862603165
+;;;  LLE  0.39706177862603165
+;;;  LLE  0.39706177862603165
+;;; 
+;; <-
+
+;; @@
+
+;; @@
